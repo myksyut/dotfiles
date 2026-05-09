@@ -1,4 +1,4 @@
-{ pkgs, username, ... }:
+{ pkgs, ... }:
 
 {
   home.stateVersion = "24.11";
@@ -43,27 +43,26 @@
     mypy
   ];
 
-  programs.zoxide.enable = true;
-  programs.atuin = {
-    enable = true;
-    flags = [ "--disable-up-arrow" ];
-  };
-  programs.tealdeer.enable = true;
-
-  programs.nix-index = {
-    enable = true;
-    enableZshIntegration = true;
-  };
-  programs.nix-index-database.comma.enable = true;
-
-  programs.tmux = {
-    enable   = true;
-    mouse    = true;
-    terminal = "screen-256color";
-  };
-
-  programs.direnv = {
-    enable = true;
-    nix-direnv.enable = true;
+  programs = {
+    zoxide.enable = true;
+    atuin = {
+      enable = true;
+      flags = [ "--disable-up-arrow" ];
+    };
+    tealdeer.enable = true;
+    nix-index = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+    nix-index-database.comma.enable = true;
+    tmux = {
+      enable = true;
+      mouse = true;
+      terminal = "screen-256color";
+    };
+    direnv = {
+      enable = true;
+      nix-direnv.enable = true;
+    };
   };
 }

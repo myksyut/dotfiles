@@ -64,5 +64,60 @@
       enable = true;
       nix-direnv.enable = true;
     };
+
+    ghostty = {
+      enable = true;
+      package = null;
+      settings = {
+        theme = "nord";
+        window-padding-x = 20;
+        window-padding-y = 5;
+        window-padding-balance = true;
+        background-opacity = 0.80;
+        background-blur-radius = 20;
+        font-feature = "-dlig";
+        fullscreen = true;
+        macos-non-native-fullscreen = true;
+        keybind = [ "ctrl+j=ignore" ];
+      };
+    };
+
+    zed-editor = {
+      enable = true;
+      package = null;
+      userSettings = {
+        cli_default_open_behavior = "existing_window";
+        project_panel.dock = "left";
+        outline_panel.dock = "left";
+        collaboration_panel.dock = "left";
+        git_panel.dock = "left";
+        agent = {
+          dock = "right";
+          default_model = {
+            provider = "ollama";
+            model = "gpt-oss:latest";
+          };
+          inline_assistant_model = {
+            provider = "ollama";
+            model = "gpt-oss:latest";
+          };
+        };
+        icon_theme = "VSCode Icons for Zed (Dark)";
+        vim_mode = false;
+        base_keymap = "Cursor";
+        ui_font_size = 16;
+        buffer_font_size = 15;
+        theme = {
+          mode = "dark";
+          light = "Nstlgy Glass Dark";
+          dark = "Nstlgy Glass Dark";
+        };
+        languages.Python.language_servers = [ "pyright" ];
+        lsp.solargraph.initialization_options = {
+          diagnostics = true;
+          formatting = true;
+        };
+      };
+    };
   };
 }

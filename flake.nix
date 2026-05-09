@@ -21,37 +21,15 @@
   in {
     darwinConfigurations.${hostname} = nix-darwin.lib.darwinSystem {
       inherit system;
+      specialArgs = { inherit username; };
       modules = [
-        ({ pkgs, ... }: {
-          nix.enable = false;
-
-          environment.systemPackages = with pkgs; [
-            git
-          ];
-
-          system.stateVersion   = 5;
-          system.primaryUser    = username;
-          nixpkgs.hostPlatform  = system;
-
-          users.users.${username} = {
-            name = username;
-            home = "/Users/${username}";
-          };
-        })
-
+        ./modules/darwin
         home-manager.darwinModules.home-manager
         {
           home-manager.useGlobalPkgs    = true;
           home-manager.useUserPackages  = true;
-          home-manager.users.${username} = { ... }: {
-            home.stateVersion = "24.11";
-
-            programs.tmux = {
-              enable   = true;
-              mouse    = true;
-              terminal = "screen-256color";
-            };
-          };
+          home-manager.extraSpecialArgs = { inherit username; };
+          home-manager.users.${username} = import ./modules/home;
         }
       ];
     };

@@ -50,6 +50,12 @@
   };
   programs.tealdeer.enable = true;
 
+  programs.nix-index = {
+    enable = true;
+    enableZshIntegration = true;
+  };
+  programs.nix-index-database.comma.enable = true;
+
   programs.tmux = {
     enable   = true;
     mouse    = true;

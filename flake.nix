@@ -11,9 +11,13 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, nix-index-database }:
   let
     system   = "aarch64-darwin";
     username = "miyakishota";
@@ -36,7 +40,12 @@
           home-manager.useGlobalPkgs    = true;
           home-manager.useUserPackages  = true;
           home-manager.extraSpecialArgs = { inherit username; };
-          home-manager.users.${username} = import ./modules/home;
+          home-manager.users.${username} = {
+            imports = [
+              nix-index-database.hmModules.nix-index
+              ./modules/home
+            ];
+          };
         }
       ];
     };

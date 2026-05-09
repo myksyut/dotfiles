@@ -29,35 +29,78 @@
 └── README.md
 ```
 
-## 入っているもの
+## 導入ツール解説
 
 ### Nix 開発支援
-- **LSP / format / lint**: `nil`, `nixfmt`, `statix`, `deadnix`
-- **進捗表示**: `nix-output-monitor` (nom)
-- **コマンド逆引き**: `nix-index-database` + `comma` (`,foo` で一時実行)
+
+| パッケージ | 解説 |
+|---|---|
+| **nil** | Nix の LSP。Zed/VSCode/Helix で `.nix` を開くと補完・参照ジャンプ・ホバーが動く |
+| **nixfmt** | Nix 公式フォーマッタ (RFC style)。treefmt 経由・単体どちらでも使用可 |
+| **statix** | Nix のリンター。anti-pattern を検出（例: `programs.x = ...; programs.y = ...;` の繰り返し → `programs = { x = ...; y = ...; }` を提案） |
+| **deadnix** | デッドコード検出。未使用の `let` バインディングや関数引数を発見 |
+| **nix-output-monitor (nom)** | `nix build` の進捗を DAG 形式でカラフル可視化。`nix run .#switch` 内部で `|& nom` を使用 |
+| **nix-index-database** | nixpkgs の binary→package 逆引きインデックス（週次更新キャッシュ）。未インストールコマンドを叩くと提案が出る |
+| **comma (`,`)** | `, foo` で foo を一時的に `nix shell nixpkgs#foo` で実行（インストール不要） |
 
 ### CLI essentials
-- **検索**: `ripgrep` (rg), `fd`, `fzf`
-- **整形・表示**: `bat`, `eza`, `jq`
-- **ナビ・履歴・docs**: `zoxide` (z), `atuin` (Ctrl+R), `tealdeer` (tldr)
+
+| パッケージ | 解説 |
+|---|---|
+| **ripgrep (rg)** | `grep` の Rust 代替。`.gitignore` を尊重、桁違いに高速。`rg pattern` |
+| **fd** | `find` の代替。`fd pattern dir` のシンプル構文、カラー出力 |
+| **fzf** | 汎用 fuzzy finder。Ctrl+T (file), Ctrl+R (history), Alt+C (cd) |
+| **bat** | `cat` の代替。シンタックスハイライト + `git diff` 表示 + ページャ |
+| **eza** | `ls` の代替。アイコン・色・ツリー表示・git status integration |
+| **jq** | JSON 処理の標準。`curl ... \| jq '.data[0]'` |
+| **zoxide (z)** | `cd` の学習版。一度行った場所に `z foo` の部分文字列でジャンプ可 |
+| **atuin** | shell history を sqlite で管理。Ctrl+R が fuzzy 検索、デバイス間同期も任意 |
+| **tealdeer (tldr)** | 実用例ベースの簡易 man。`tldr tar` で要点だけ |
 
 ### Git 周り
-- `gh`, `lazygit`, `delta`
+
+| パッケージ | 解説 |
+|---|---|
+| **gh** | GitHub CLI。`gh repo create`, `gh pr create`, `gh issue list` 等 |
+| **lazygit** | TUI Git クライアント。rebase/cherry-pick/stage を h/j/k/l でサクサク |
+| **delta** | `git diff` のページャ。シンタックスハイライト + サイドバイサイド表示 |
 
 ### 開発ユーティリティ
-- `just`, `watchexec`, `hyperfine`, `xh`
-- `direnv` + `nix-direnv` (`use flake` で自動有効化)
+
+| パッケージ | 解説 |
+|---|---|
+| **just** | Makefile 代替の軽量タスクランナー。シンプル構文、引数渡しが楽 |
+| **watchexec** | ファイル変更で再実行。`watchexec -e py pytest` で .py 変更時に pytest |
+| **hyperfine** | コマンドベンチマーカー。warmup/runs 指定で統計的に valid な計測 |
+| **xh** | HTTP クライアント (HTTPie の Rust 版)。`xh post api/foo name=bar` |
+| **direnv** | ディレクトリごとの env 管理。`.envrc` を `cd` で自動 source |
+| **nix-direnv** | direnv の Nix 拡張。`use flake` をキャッシュで高速化 |
 
 ### UNIX 代替 (Rust 製)
-- `dust` (du), `duf` (df), `procs` (ps)
+
+| パッケージ | 解説 |
+|---|---|
+| **dust** | `du -sh` の代替。ディレクトリサイズを縦棒グラフで可視化 |
+| **duf** | `df` の代替。マウントポイントを色付きテーブル表示 |
+| **procs** | `ps` の代替。色付き・ツリー表示・検索・TCP統合 |
 
 ### Python
-- `uv`, `ruff`, `pyright`, `mypy`, `pyenv`
+
+| パッケージ | 解説 |
+|---|---|
+| **uv** | パッケージ + venv + バージョン管理の統合 (Rust 製、爆速)。`uv add foo`, `uv python install 3.13` |
+| **ruff** | linter + formatter。black/isort/flake8 を統合、100倍高速 |
+| **pyright** | 型 LSP (Microsoft 製)。Zed/VSCode で型チェック・補完 |
+| **mypy** | 厳密な型チェッカ。CI で使うことが多い |
+| **pyenv** | 古典的なバージョンマネージャ。`~/.pyenv/versions/*` 互換維持用、新規は uv 推奨 |
 
 ### ランタイム / アプリ
-- `tmux` (home-manager 管理、`~/.config/tmux/tmux.conf` 自動生成)
-- `deno` (zeno.zsh の依存)
-- `claude-code` (バイナリ名: `claude`)
+
+| パッケージ | 解説 |
+|---|---|
+| **tmux** | ターミナル多重化。home-manager 管理で `~/.config/tmux/tmux.conf` 自動生成 |
+| **deno** | TypeScript ランタイム (Rust 製)。zeno.zsh の必須依存 |
+| **claude-code** | Anthropic Claude Code CLI（バイナリ名: `claude`） |
 
 ## 動作確認サンプル
 

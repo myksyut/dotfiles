@@ -22,7 +22,7 @@
     claude-code
 
     nil
-    nixfmt-rfc-style
+    nixfmt
     statix
     nix-output-monitor
 

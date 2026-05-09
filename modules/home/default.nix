@@ -16,6 +16,10 @@
     gh
     lazygit
     delta
+
+    deno
+    pyenv
+    claude-code
   ];
 
   programs.tmux = {

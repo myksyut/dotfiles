@@ -16,6 +16,12 @@ sudo darwin-rebuild switch --flake ~/.config/nix-config#miyakinoMacBook-Air
 └── flake.lock      # 入力の固定バージョン (git管理する)
 ```
 
+## ヒント / Tips
+
+- **ipython を一時的に使う**: `uvx ipython` で隔離環境内に ipython をインストールして起動（global を汚さない）
+- **uv で Python venv**: `uv venv && uv add foo` でプロジェクトごとの venv 管理
+- **direnv で flake devShell 自動適用**: プロジェクト直下に `.envrc` (`use flake`) と `flake.nix` を置く
+
 ## 今後の追加予定
 
 ### システム / ユーザーパッケージ

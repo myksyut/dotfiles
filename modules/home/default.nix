@@ -20,7 +20,35 @@
     deno
     pyenv
     claude-code
+
+    nil
+    nixfmt-rfc-style
+    statix
+    nix-output-monitor
+
+    tealdeer
+
+    just
+    watchexec
+    hyperfine
+    xh
+
+    dust
+    duf
+    procs
+
+    uv
+    ruff
+    pyright
+    mypy
   ];
+
+  programs.zoxide.enable = true;
+  programs.atuin = {
+    enable = true;
+    flags = [ "--disable-up-arrow" ];
+  };
+  programs.tealdeer.enable = true;
 
   programs.tmux = {
     enable   = true;

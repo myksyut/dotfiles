@@ -4,6 +4,13 @@
   home = {
     stateVersion = "24.11";
 
+    sessionVariables = {
+      # Playwright が npm パッケージ側で再ダウンロードしないよう、
+      # Nix が用意したブラウザバンドルへパスを固定する。
+      PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+      PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+    };
+
     packages = with pkgs; [
       ripgrep
       fd
@@ -46,6 +53,8 @@
       nodejs_22
       pnpm
       biome
+      playwright-driver
+      playwright-test
 
       mise
       terraform
@@ -139,6 +148,7 @@
         auto_install_extensions = {
           biome = true;
           terraform = true;
+          nix = true;
         };
 
         # docks / panels
@@ -155,7 +165,7 @@
         git_panel.dock = "left";
         notification_panel.dock = "right";
         terminal = {
-          dock = "bottom";
+          dock = "hidden"; # bottom dock を使わず、エディタタブで運用 (cmd-shift-enter で新規)
           copy_on_select = true;
           blinking = "on";
           shell = "system";
@@ -173,6 +183,13 @@
             model = "gpt-oss:latest";
           };
         };
+        # Claude Code (ACP) — agent panel から起動するとファイル編集 diff を Zed の multibuffer diff UI で確認できる。
+        # 初回スレッド作成時に @zed-industries/claude-agent-acp を Zed が自動 install する。
+        agent_servers = {
+          "claude-acp" = {
+            type = "registry";
+          };
+        };
 
         # appearance
         icon_theme = "VSCode Icons for Zed (Dark)";
@@ -186,10 +203,10 @@
         theme_overrides = {
           "Nstlgy Glass Dark" = {
             "background.appearance" = "blurred";
-            background = "#19192633";
-            "surface.background" = "#1e1e2e33";
-            "status_bar.background" = "#1e1e2e33";
-            "title_bar.background" = "#1e1e2e33";
+            background = "#1919264d";
+            "surface.background" = "#1e1e2e4d";
+            "status_bar.background" = "#1e1e2e4d";
+            "title_bar.background" = "#1e1e2e4d";
           };
         };
         ui_font_size = 16;
@@ -521,6 +538,17 @@
           };
         };
       };
+      userKeymaps = [
+        {
+          context = "Workspace";
+          bindings = {
+            # エディタ領域に新規ターミナルタブを開く (bottom dock は非表示)
+            "cmd-shift-enter" = "workspace::NewCenterTerminal";
+            # ペインを左右に縦分割
+            "cmd-shift-d" = "pane::SplitRight";
+          };
+        }
+      ];
     };
   };
 }

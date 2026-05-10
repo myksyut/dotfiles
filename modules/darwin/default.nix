@@ -18,6 +18,7 @@
   environment.systemPackages = with pkgs; [
     git
     zed-editor
+    (callPackage ../../pkgs/agent-deck { })
   ];
 
   system = {

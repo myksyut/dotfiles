@@ -31,4 +31,10 @@
     name = username;
     home = "/Users/${username}";
   };
+
+  # `nix run .#switch` を sudo パスワードなしで実行できるように darwin-rebuild のみ NOPASSWD 許可。
+  # `flake.nix` 側で固定パス /run/current-system/sw/bin/darwin-rebuild を sudo するため、ここのパスと一致させる。
+  environment.etc."sudoers.d/nix-darwin-rebuild".text = ''
+    ${username} ALL=(ALL) NOPASSWD: /run/current-system/sw/bin/darwin-rebuild
+  '';
 }

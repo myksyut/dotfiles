@@ -100,7 +100,8 @@
             pkgs.writeShellScript "darwin-switch" ''
               set -eo pipefail
               echo "==> Building and switching darwin configuration..."
-              sudo ${nix-darwin.packages.${system}.darwin-rebuild}/bin/darwin-rebuild \
+              # 固定パスの darwin-rebuild を使う (sudoers の NOPASSWD ルールがマッチするように)
+              sudo /run/current-system/sw/bin/darwin-rebuild \
                 switch --flake "${self}#${hostname}" \
                 |& ${pkgs.nix-output-monitor}/bin/nom
               echo "==> Done!"

@@ -544,8 +544,8 @@
           bindings = {
             # エディタ領域に新規ターミナルタブを開く (bottom dock は非表示)
             "cmd-shift-enter" = "workspace::NewCenterTerminal";
-            # ペインを左右に縦分割
-            "cmd-shift-d" = "pane::SplitRight";
+            # ペインを上下に分割
+            "cmd-shift-d" = "pane::SplitDown";
           };
         }
       ];

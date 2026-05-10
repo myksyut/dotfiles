@@ -41,6 +41,11 @@
     ruff
     pyright
     mypy
+
+    mise
+    terraform
+    azure-cli
+    awscli2
   ];
 
   programs = {
@@ -84,7 +89,7 @@
 
     zed-editor = {
       enable = true;
-      package = null;
+      package = null; # GUI app は darwin 側 environment.systemPackages で install (/Applications/Nix Apps/ へ自動link)
       userSettings = {
         cli_default_open_behavior = "existing_window";
         project_panel.dock = "left";

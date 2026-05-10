@@ -5,8 +5,19 @@
 
   nixpkgs.config.allowUnfree = true;
 
+  homebrew = {
+    enable = true;
+    casks = [ "ghostty" ];
+    onActivation = {
+      cleanup = "none";
+      autoUpdate = false;
+      upgrade = false;
+    };
+  };
+
   environment.systemPackages = with pkgs; [
     git
+    zed-editor
   ];
 
   system.stateVersion = 5;

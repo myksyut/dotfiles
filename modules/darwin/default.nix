@@ -20,8 +20,11 @@
     zed-editor
   ];
 
-  system.stateVersion = 5;
-  system.primaryUser = username;
+  system = {
+    stateVersion = 5;
+    primaryUser = username;
+    defaults.finder.CreateDesktop = false;
+  };
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   users.users.${username} = {

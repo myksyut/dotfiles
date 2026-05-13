@@ -1,0 +1,10 @@
+# statix の lint 設定。pre-commit から呼ばれる際にも参照される。
+#
+# - repeated_keys: `nixpkgs.config.allowUnfree` と `nixpkgs.overlays` のような
+#   トップレベル ドット記法を複数行で並べる書き方を attribute set に畳めという
+#   warning。本リポジトリは敢えてフラット形式で読みやすさを優先しているため無効化。
+disabled = ["repeated_keys"]
+
+# 並走する worktrees の中身までトップから scan されないように除外。
+# build 成果物 / direnv キャッシュも合わせて。
+ignore = [".claude", ".direnv", "result"]

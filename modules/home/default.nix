@@ -1,5 +1,13 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 
+let
+  isDarwin = pkgs.stdenv.isDarwin;
+in
 {
   home = {
     stateVersion = "24.11";
@@ -11,60 +19,68 @@
       PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
     };
 
-    packages = with pkgs; [
-      ripgrep
-      fd
-      fzf
+    packages =
+      with pkgs;
+      [
+        ripgrep
+        fd
+        fzf
 
-      bat
-      eza
+        bat
+        eza
 
-      jq
+        jq
 
-      gh
-      lazygit
-      delta
+        gh
+        lazygit
+        delta
+        (callPackage ../../pkgs/gwq { })
 
-      deno
-      pyenv
-      claude-code
+        deno
+        pyenv
+        claude-code
+        codex
 
-      nil
-      nixfmt
-      statix
-      nix-output-monitor
+        nil
+        nixfmt
+        statix
+        nix-output-monitor
 
-      tealdeer
+        tealdeer
 
-      just
-      watchexec
-      hyperfine
-      xh
+        just
+        watchexec
+        hyperfine
+        xh
 
-      dust
-      duf
-      procs
+        dust
+        duf
+        procs
 
-      uv
-      ruff
-      pyright
-      mypy
+        uv
+        ruff
+        pyright
+        mypy
 
-      nodejs_22
-      pnpm
-      biome
-      playwright-driver
-      playwright-test
+        nodejs_22
+        pnpm
+        biome
+        playwright-driver
+        playwright-test
 
-      mise
-      terraform
-      terraform-ls
-      tflint
-      azure-cli
-      awscli2
+        mise
+        terraform
+        terraform-ls
+        tflint
+        azure-cli
+        awscli2
 
-      nerd-fonts.jetbrains-mono
-    ];
+        nerd-fonts.jetbrains-mono
+      ]
+      ++ lib.optionals isDarwin [
+        # macOS のみ build 可能なパッケージ
+        terminal-notifier
+      ];
 
     file.".config/tmux/session-color.sh" = {
       executable = true;
@@ -81,6 +97,303 @@
         index=$((hash % ''${#colors[@]}))
         bg="''${colors[$index]}"
         tmux set -t "$session" status-style "bg=$bg,fg=#2e3440"
+      '';
+    };
+
+    file.".config/tmux/fzf-url.sh" = {
+      executable = true;
+      text = ''
+        #!/usr/bin/env bash
+        set -euo pipefail
+        pane="''${1:-''${TMUX_PANE:-}}"
+        urls=$(tmux capture-pane -J -p -S - ''${pane:+-t "$pane"} \
+          | grep -oE 'https?://[^[:space:]<>"'"'"'`]+' \
+          | sed 's/[.,);:!?]*$//' \
+          | awk '!seen[$0]++')
+        [ -z "$urls" ] && exit 0
+        selected=$(printf '%s\n' "$urls" | fzf --reverse --no-multi --prompt='URL> ')
+        [ -z "$selected" ] && exit 0
+        # macOS=open / WSL=wslview / その他Linux=xdg-open でブラウザに渡す
+        if command -v open >/dev/null 2>&1; then
+          open "$selected"
+        elif command -v wslview >/dev/null 2>&1; then
+          wslview "$selected"
+        elif command -v xdg-open >/dev/null 2>&1; then
+          xdg-open "$selected"
+        else
+          echo "no URL opener found (open / wslview / xdg-open)" >&2
+          exit 1
+        fi
+      '';
+    };
+
+    # gwq のグローバル設定。`repository = "**"` の catch-all で全リポジトリに共通の
+    # copy_files / setup_commands を適用する。findRepoSetting は先頭一致なので、
+    # 特定 repo 用の override を入れる場合は `**` より上に並べること。
+    file.".config/gwq/config.toml".text = ''
+      [[repository_settings]]
+      repository = "**"
+      copy_files = [
+        ".env",
+        ".env.*",
+        ".envrc",
+        ".envrc.local",
+        ".tool-versions",
+        ".python-version",
+        ".node-version",
+        ".claude/settings.local.json",
+      ]
+      setup_commands = [
+        "if [ -f .envrc ]; then direnv allow .; fi",
+      ]
+    '';
+
+    # Zed のターミナルから呼び出して、プロジェクト (repo__branch) ごとに tmux セッションを
+    # attach / 新規作成する launcher。worktree-switcher.sh と同じ命名規則。
+    file.".config/tmux/zed-launcher.sh" = {
+      executable = true;
+      text = ''
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        if git rev-parse --git-dir >/dev/null 2>&1; then
+          repo_root=$(git rev-parse --show-toplevel)
+          repo_name=$(git -C "$repo_root" remote get-url origin 2>/dev/null \
+            | sed 's|.*/||; s|\.git$||')
+          [ -z "$repo_name" ] && repo_name=$(basename "$repo_root")
+          branch=$(git -C "$repo_root" symbolic-ref --short HEAD 2>/dev/null \
+            || git -C "$repo_root" rev-parse --short HEAD)
+          session_name=$(printf '%s__%s' "$repo_name" "$branch" | tr ':./' '___')
+        else
+          session_name=$(basename "$PWD" | tr ':./' '___')
+        fi
+
+        exec tmux new-session -A -s "$session_name" -c "$PWD"
+      '';
+    };
+
+    # tmux popup から呼び出して、既存 worktree / ローカル / リモートブランチを fzf で選び、
+    # 必要なら gwq add で worktree を作成し、tmux セッションを起動 or 切替する。
+    file.".config/tmux/worktree-switcher.sh" = {
+      executable = true;
+      text = ''
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        # popup の cwd は呼び出し元 pane の current_path だが、
+        # その path が削除済みだと git rev-parse が失敗して global モードに落ち、
+        # basedir 外の本体 worktree が一覧から消える。先に有効な cwd に逃がす。
+        if ! pwd >/dev/null 2>&1 || [ ! -d "$(pwd 2>/dev/null)" ]; then
+          cd "$HOME" || exit 1
+        fi
+
+        if ! command -v gwq >/dev/null 2>&1; then
+          echo "gwq not found in PATH" >&2
+          read -r -p "press enter to exit" _ || true
+          exit 1
+        fi
+
+        in_repo=false
+        if git rev-parse --git-dir >/dev/null 2>&1; then
+          in_repo=true
+        fi
+
+        if $in_repo; then
+          worktrees_json=$(gwq list --json 2>/dev/null || echo "[]")
+        else
+          worktrees_json=$(gwq list -g --json 2>/dev/null || echo "[]")
+        fi
+
+        worktrees=$(printf '%s\n' "$worktrees_json" \
+          | jq -r '.[] | "[wt] " + .branch + "\t" + .path')
+        existing_branches=$(printf '%s\n' "$worktrees_json" | jq -r '.[].branch')
+
+        local_lines=""
+        remote_lines=""
+        if $in_repo; then
+          # grep -vxFf は全行除外時に exit 1 を返すので、|| true で pipefail を無効化。
+          local_lines=$(git branch --format='%(refname:short)' \
+            | { grep -vxFf <(printf '%s\n' "$existing_branches") || true; } \
+            | awk 'NF{print "[local] " $0 "\t"}')
+          remote_lines=$(git branch -r --format='%(refname:short)' \
+            | grep -v 'HEAD' \
+            | sed 's|^[^/]*/||' \
+            | sort -u \
+            | { grep -vxFf <(printf '%s\n' "$existing_branches") || true; } \
+            | awk 'NF{print "[remote] " $0 "\t"}')
+        fi
+
+        candidates=$(
+          {
+            printf '%s\n' "$worktrees"
+            [ -n "$local_lines" ] && printf '%s\n' "$local_lines"
+            [ -n "$remote_lines" ] && printf '%s\n' "$remote_lines"
+            true
+          } | awk 'NF'
+        )
+
+        # 候補ゼロでも fzf は起動する: query をそのまま新規ブランチ名として扱うため。
+        set +e
+        fzf_out=$(printf '%s\n' "$candidates" | fzf \
+          --reverse --no-multi --prompt='gwq> ' \
+          --delimiter=$'\t' --with-nth=1 \
+          --print-query --expect=ctrl-d \
+          --header='enter: switch / new  •  ctrl-d: remove worktree' \
+          --preview='echo {2}' --preview-window='down:1:wrap')
+        fzf_status=$?
+        set -e
+
+        # Esc/Ctrl-C は 130。何もせず終了。
+        if [ "$fzf_status" -eq 130 ]; then
+          exit 0
+        fi
+
+        # --print-query --expect の出力: 1行目=query, 2行目=押されたキー(空ならEnter), 3行目=選択
+        query=$(printf '%s' "$fzf_out" | sed -n '1p')
+        pressed_key=$(printf '%s' "$fzf_out" | sed -n '2p')
+        selected=$(printf '%s' "$fzf_out" | sed -n '3p')
+
+        # Ctrl-D: worktree 削除モード
+        if [ "$pressed_key" = "ctrl-d" ]; then
+          if [ -z "$selected" ]; then
+            echo "No worktree selected to remove" >&2
+            read -r -p "press enter to exit" _ || true
+            exit 1
+          fi
+          label=$(printf '%s' "$selected" | awk -F'\t' '{print $1}')
+          del_path=$(printf '%s' "$selected" | awk -F'\t' '{print $2}')
+          case "$label" in
+            "[wt] "*)
+              del_branch="''${label#'[wt] '}"
+              ;;
+            *)
+              echo "Can only remove [wt] entries (got: $label)" >&2
+              read -r -p "press enter to exit" _ || true
+              exit 1
+              ;;
+          esac
+
+          current_session=$(tmux display-message -p '#S' 2>/dev/null || echo "")
+          del_repo=$(git -C "$del_path" remote get-url origin 2>/dev/null \
+            | sed 's|.*/||; s|\.git$||' || true)
+          [ -z "$del_repo" ] && del_repo=$(basename "$del_path")
+          del_session=$(printf '%s__%s' "$del_repo" "$del_branch" | tr ':./' '___')
+
+          if [ "$current_session" = "$del_session" ]; then
+            printf 'Currently attached to %s. Remove worktree & drop to shell? [y/N] ' "$del_session"
+          else
+            printf 'Remove worktree %s? [y/N] ' "$del_branch"
+          fi
+          read -r confirm || confirm=""
+          case "$confirm" in
+            y|Y|yes|YES) ;;
+            *)
+              echo "Cancelled."
+              exit 0
+              ;;
+          esac
+
+          # cd 前に main repo path を抑える ($HOME に逃げると -C が必要)。
+          main_repo=$(printf '%s' "$worktrees_json" \
+            | jq -r '.[] | select(.is_main==true) | .path')
+          [ -z "$main_repo" ] && main_repo=$(git -C "$del_path" rev-parse --show-toplevel 2>/dev/null || echo "")
+
+          # popup の cwd が del_path だと remove 後に困るので退避。
+          cd "$HOME"
+
+          # gwq remove は pattern 部分一致 (test→test/test2 両方ヒット) で
+          # popup 内 fuzzy finder が起動できず cancel になる。git worktree
+          # remove に path を直接渡せば曖昧マッチが起きない。
+          if [ -z "$main_repo" ] || ! git -C "$main_repo" worktree remove "$del_path"; then
+            echo "git worktree remove failed (try -f if dirty)."
+            read -r -p "press enter to exit" _ || true
+            exit 1
+          fi
+
+          # 残った tmux セッションを kill。current session を kill すると
+          # クライアントが detach されて素のターミナルに戻る。
+          if tmux has-session -t "=$del_session" 2>/dev/null; then
+            tmux kill-session -t "=$del_session"
+          fi
+          exit 0
+        fi
+
+        if [ -z "$selected" ]; then
+          # マッチなし or 候補ゼロ + Enter → query を新規ブランチ名として作成。
+          if [ -z "$query" ]; then
+            exit 0
+          fi
+          if ! $in_repo; then
+            echo "Not in a git repo; cannot create new branch '$query'" >&2
+            read -r -p "press enter to exit" _ || true
+            exit 1
+          fi
+          base_branch=$( { git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
+            | sed 's|^refs/remotes/origin/||'; } || true)
+          [ -n "$base_branch" ] || base_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo main)
+          branch="$query"
+          # gwq add は [branch] [path] 受けで base ブランチを指定できないため、
+          # 先に git branch で base から作成してから gwq add で worktree 化する。
+          if ! git branch "$branch" "$base_branch" 2>/dev/null \
+              && ! git branch "$branch" "origin/$base_branch" 2>/dev/null; then
+            echo "failed to create branch $branch from $base_branch" >&2
+            read -r -p "press enter to exit" _ || true
+            exit 1
+          fi
+          if ! gwq add "$branch"; then
+            echo "gwq add $branch failed" >&2
+            read -r -p "press enter to exit" _ || true
+            exit 1
+          fi
+          target_path=$(gwq get "$branch" 2>/dev/null || true)
+          if [ -z "$target_path" ]; then
+            echo "Could not resolve worktree path for $branch" >&2
+            read -r -p "press enter to exit" _ || true
+            exit 1
+          fi
+        else
+          label=$(printf '%s' "$selected" | awk -F'\t' '{print $1}')
+          target_path=$(printf '%s' "$selected" | awk -F'\t' '{print $2}')
+
+          case "$label" in
+            "[wt] "*)
+              branch="''${label#'[wt] '}"
+              ;;
+            "[local] "*|"[remote] "*)
+              branch="''${label#*'] '}"
+              if ! gwq add "$branch"; then
+                echo "gwq add $branch failed" >&2
+                read -r -p "press enter to exit" _ || true
+                exit 1
+              fi
+              target_path=$(gwq get "$branch" 2>/dev/null || true)
+              if [ -z "$target_path" ]; then
+                echo "Could not resolve worktree path for $branch" >&2
+                read -r -p "press enter to exit" _ || true
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unknown selection: $label" >&2
+              exit 1
+              ;;
+          esac
+        fi
+
+        repo_name=$(git -C "$target_path" remote get-url origin 2>/dev/null \
+          | sed 's|.*/||; s|\.git$||')
+        [ -z "$repo_name" ] && repo_name=$(basename "$(git -C "$target_path" rev-parse --show-toplevel 2>/dev/null || echo "$target_path")")
+        session_name=$(printf '%s__%s' "$repo_name" "$branch" | tr ':./' '___')
+
+        if ! tmux has-session -t "=$session_name" 2>/dev/null; then
+          tmux new-session -d -s "$session_name" -c "$target_path"
+        fi
+
+        if [ -n "''${TMUX:-}" ]; then
+          tmux switch-client -t "=$session_name"
+        else
+          tmux attach-session -t "$session_name"
+        fi
       '';
     };
   };
@@ -103,9 +416,13 @@
       terminal = "screen-256color";
       extraConfig = ''
         set -g status-style "bg=#3b4252,fg=#eceff4"
+        set -g status-right-length 60
+        set -g status-right '#{?client_prefix,#[bg=#ebcb8b]#[fg=#2e3440]#[bold] ● PREFIX #[default] ,}%H:%M '
         set-hook -g session-created 'run-shell -b "~/.config/tmux/session-color.sh #{session_name}"'
         set-hook -g client-attached 'run-shell -b "~/.config/tmux/session-color.sh #{session_name}"'
         set-hook -g session-renamed 'run-shell -b "~/.config/tmux/session-color.sh #{session_name}"'
+        bind-key u display-popup -E -w 80% -h 60% "~/.config/tmux/fzf-url.sh #{pane_id}"
+        bind-key w display-popup -E -d '#{pane_current_path}' -w 80% -h 60% "~/.config/tmux/worktree-switcher.sh"
       '';
     };
     direnv = {
@@ -113,7 +430,9 @@
       nix-direnv.enable = true;
     };
 
-    ghostty = {
+    # Ghostty / Zed は GUI アプリで WSL (NixOS) では実用上意味がないため Darwin のみ enable。
+    # WSL では Windows 側 (Windows Terminal / Zed Windows build) を使う前提。
+    ghostty = lib.mkIf isDarwin {
       enable = true;
       package = null;
       settings = {
@@ -130,7 +449,7 @@
       };
     };
 
-    zed-editor = {
+    zed-editor = lib.mkIf isDarwin {
       enable = true;
       package = null; # GUI app は darwin 側 environment.systemPackages で install (/Applications/Nix Apps/ へ自動link)
       userSettings = {
@@ -168,7 +487,8 @@
           dock = "hidden"; # bottom dock を使わず、エディタタブで運用 (cmd-shift-enter で新規)
           copy_on_select = true;
           blinking = "on";
-          shell = "system";
+          # Zed ターミナル起動時に repo__branch 名の tmux セッションへ attach (無ければ新規作成)
+          shell.program = "${config.home.homeDirectory}/.config/tmux/zed-launcher.sh";
         };
 
         # agent
@@ -198,15 +518,15 @@
           light = "Nstlgy Glass Dark";
           dark = "Nstlgy Glass Dark";
         };
-        # 元 alpha が D7/D0 (≒82-84%) の主要背景を 99 (60%) に下げて、よりガラスっぽく透過させる。
+        # 水色(アクア寄りのライトブルー)ベース。エディタ部は alpha=cc (≒80%)、パネル/バーは e6 (≒90%)。
         # editor/panel/terminal などは元から #00000000 (完全透過) で background に重なる構造のため、background を下げれば全体に反映される。
         theme_overrides = {
           "Nstlgy Glass Dark" = {
             "background.appearance" = "blurred";
-            background = "#1919264d";
-            "surface.background" = "#1e1e2e4d";
-            "status_bar.background" = "#1e1e2e4d";
-            "title_bar.background" = "#1e1e2e4d";
+            background = "#1f4a6acc";
+            "surface.background" = "#2a6885e6";
+            "status_bar.background" = "#2a6885e6";
+            "title_bar.background" = "#2a6885e6";
           };
         };
         ui_font_size = 16;
@@ -219,7 +539,7 @@
         buffer_line_height = "comfortable";
 
         # editor behavior
-        vim_mode = false;
+        vim_mode = true;
         base_keymap = "Cursor";
         cursor_blink = false;
         cursor_shape = "bar";
@@ -538,14 +858,32 @@
           };
         };
       };
+      # 各 binding は Cursor base keymap が Editor / Terminal context で
+      # 同キーを別アクションに bind しているのを上書きするため、複数 context に登録する。
       userKeymaps = [
         {
           context = "Workspace";
           bindings = {
-            # エディタ領域に新規ターミナルタブを開く (bottom dock は非表示)
             "cmd-shift-enter" = "workspace::NewCenterTerminal";
-            # ペインを上下に分割
             "cmd-shift-d" = "pane::SplitDown";
+            "cmd-d" = "pane::SplitRight";
+          };
+        }
+        {
+          context = "Editor";
+          bindings = {
+            "cmd-shift-enter" = "workspace::NewCenterTerminal";
+            "cmd-shift-d" = "pane::SplitDown";
+            "cmd-d" = "pane::SplitRight";
+            "cmd-alt-d" = "editor::SelectNext";
+          };
+        }
+        {
+          context = "Terminal";
+          bindings = {
+            "cmd-shift-enter" = "workspace::NewCenterTerminal";
+            "cmd-shift-d" = "pane::SplitDown";
+            "cmd-d" = "pane::SplitRight";
           };
         }
       ];

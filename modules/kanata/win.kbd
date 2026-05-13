@@ -1,0 +1,35 @@
+;; -----------------------------------------------------------------------------
+;; kanata config for Windows  (NuPhy Air75 V3, Mac モードのまま接続する想定)
+;; -----------------------------------------------------------------------------
+;; ゴール: Windows でも macOS と同じ「親指キー = コピペ/タブ操作の修飾子」感覚
+;; を再現する。NuPhy が Mac モードのとき、左右親指位置のキーは LMeta (Win) を
+;; 送るので、これを LCtrl に化かしてアプリ視点で Mac の Cmd と同じ役回りにする。
+;;
+;; キー対応 (左下スペース周辺、Mac モード時の物理ラベル → 物理 scancode → 送出):
+;;   [Ctrl]  -> lctl -> lmet    ;; 元 Ctrl は Win キーへ (スタートメニュー等)
+;;   [Opt]   -> lalt -> lalt    ;; Alt はそのまま
+;;   [Cmd]   -> lmet -> lctl    ;; Cmd 位置を Ctrl に (Ctrl+C = コピー、等)
+;;   [RCmd]  -> rmet -> rctl    ;; 右側も対称に
+;;   [ROpt]  -> ralt -> ralt
+;;
+;; CapsLock も mac.kbd と揃えて tap=Esc / hold=LCtrl 化する。
+;; -----------------------------------------------------------------------------
+
+(defcfg
+  process-unmapped-keys yes
+  ;; Windows では interception driver 経由で動かす前提。
+  ;; danger-enable-cmd は不要、明示 off。
+  danger-enable-cmd no
+)
+
+(defsrc
+  caps  lctl  lmet  lalt  ralt  rmet
+)
+
+(defalias
+  cesc (tap-hold 200 200 esc lctl)
+)
+
+(deflayer base
+  @cesc lmet  lctl  lalt  ralt  rctl
+)

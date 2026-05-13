@@ -1,0 +1,30 @@
+;; -----------------------------------------------------------------------------
+;; kanata config for macOS  (NuPhy Air75 V3, Mac mode)
+;; -----------------------------------------------------------------------------
+;; macOS は Cmd ファーストの修飾子配置がそのまま使えるので、ここでは
+;; 「Mac でも Win でも欲しい QoL リマップ」だけを最小限に定義する。
+;;
+;; - CapsLock を Esc (tap) / LCtrl (hold) — いわゆる "Control on caps" 系
+;; - その他は process-unmapped-keys yes で素通し
+;; -----------------------------------------------------------------------------
+
+(defcfg
+  process-unmapped-keys yes
+  ;; macOS では DriverKit virtual HID device 経由で送出する。
+  ;; kanata 1.6.0+ は自動検出するので追加設定は不要。
+  ;; 危険な cmd 実行は無効化。
+  danger-enable-cmd no
+)
+
+(defsrc
+  caps
+)
+
+(defalias
+  ;; Tap で Esc、Hold で LCtrl。Vim/terminal 両方で便利。
+  cesc (tap-hold 200 200 esc lctl)
+)
+
+(deflayer base
+  @cesc
+)

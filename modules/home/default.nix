@@ -399,6 +399,22 @@ in
   };
 
   programs = {
+    # zsh を home-manager 配下に置く。これを有効化しないと zoxide/atuin/direnv 等の
+    # zsh integration が ~/.zshrc に書き出されず、シェルが素のままになる
+    # (Linux/WSL では `zsh-newuser-install` のプロンプトに毎回当たる)。
+    zsh = {
+      enable = true;
+      enableCompletion = true;
+      autosuggestion.enable = true;
+      syntaxHighlighting.enable = true;
+      history = {
+        size = 100000;
+        save = 100000;
+        path = "$HOME/.zsh_history";
+        ignoreDups = true;
+        share = true;
+      };
+    };
     zoxide.enable = true;
     atuin = {
       enable = true;

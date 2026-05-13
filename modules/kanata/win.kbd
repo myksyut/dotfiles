@@ -6,7 +6,7 @@
 ;; 送るので、これを LCtrl に化かしてアプリ視点で Mac の Cmd と同じ役回りにする。
 ;;
 ;; キー対応 (左下スペース周辺、Mac モード時の物理ラベル → 物理 scancode → 送出):
-;;   [Ctrl]  -> lctl -> lmet    ;; 元 Ctrl は Win キーへ (スタートメニュー等)
+;;   [Ctrl]  -> lctl -> @cwin   ;; tap=何もしない / hold+他キー=LWin (Start誤爆を防ぐ)
 ;;   [Opt]   -> lalt -> lalt    ;; Alt はそのまま
 ;;   [Cmd]   -> lmet -> lctl    ;; Cmd 位置を Ctrl に (Ctrl+C = コピー、等)
 ;;   [RCmd]  -> rmet -> rctl    ;; 右側も対称に
@@ -17,8 +17,7 @@
 
 (defcfg
   process-unmapped-keys yes
-  ;; Windows では interception driver 経由で動かす前提。
-  ;; danger-enable-cmd は不要、明示 off。
+  ;; winIOv2 (LLHOOK) で常駐させる前提。Interception driver は使わない。
   danger-enable-cmd no
 )
 
@@ -28,8 +27,11 @@
 
 (defalias
   cesc (tap-hold 200 200 esc lctl)
+  ;; 物理 Ctrl: tap (単押し) は無効化して Start メニュー誤爆を防ぐ。
+  ;; 別キーと同時押し (Ctrl+L 等) のときだけ LWin 修飾子として振る舞う。
+  cwin (tap-hold-press 200 200 nop0 lmet)
 )
 
 (deflayer base
-  @cesc lmet  lctl  lalt  ralt  rctl
+  @cesc @cwin lctl  lalt  ralt  rctl
 )

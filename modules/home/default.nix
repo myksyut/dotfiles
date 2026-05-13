@@ -414,6 +414,11 @@ in
         ignoreDups = true;
         share = true;
       };
+      # 企業 TLS MITM (Zscaler 等) 環境向けに、追加 CA bundle が居る場合だけ
+      # Node 系 (claude-code 等) に渡す。バンドル不在の通常環境ではノーオペ。
+      initContent = ''
+        [ -f /etc/nix/custom-bundle.pem ] && export NODE_EXTRA_CA_CERTS=/etc/nix/custom-bundle.pem
+      '';
     };
     zoxide.enable = true;
     atuin = {

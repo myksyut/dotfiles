@@ -27,6 +27,12 @@
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # zeno.zsh (zsh snippet/補完プラグイン)。flake ではないので source tree だけもらう。
+    # 実行時に deno が node_modules を生成するため writable copy が必要 (modules/home の activation 参照)。
+    zeno-zsh = {
+      url = "github:yuki-yano/zeno.zsh/37bebf0e1737de000abe0d58f70d41b8ef61f9b4";
+      flake = false;
+    };
   };
 
   outputs =
@@ -39,6 +45,7 @@
       nix-index-database,
       treefmt-nix,
       git-hooks,
+      zeno-zsh,
     }:
     let
       # ---- macOS (nix-darwin) ----
@@ -99,7 +106,9 @@
         home-manager = {
           useGlobalPkgs = true;
           useUserPackages = true;
-          extraSpecialArgs = { inherit username; };
+          # 管理対象パスに既存ファイルがある場合は <file>.before-nix.backup へ退避してから link
+          backupFileExtension = "before-nix.backup";
+          extraSpecialArgs = { inherit username zeno-zsh; };
           users.${username} = {
             imports = [
               nix-index-database.homeModules.nix-index

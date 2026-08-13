@@ -2,6 +2,7 @@
   pkgs,
   config,
   lib,
+  zeno-zsh,
   ...
 }:
 
@@ -34,12 +35,15 @@ in
         gh
         lazygit
         delta
+        himalaya
         (callPackage ../../pkgs/gwq { })
 
         deno
         pyenv
         claude-code
         codex
+        herdr
+        pi-coding-agent
 
         nil
         nixfmt
@@ -69,6 +73,7 @@ in
         playwright-test
 
         mise
+        railway
         terraform
         terraform-ls
         tflint
@@ -76,11 +81,20 @@ in
         awscli2
 
         nerd-fonts.jetbrains-mono
+        # 日本語合成フォント (HackGen35ConsoleNF 等)。~/Library/Fonts への手動配置から移行
+        hackgen-nf-font
       ]
       ++ lib.optionals isDarwin [
         # macOS のみ build 可能なパッケージ
         terminal-notifier
       ];
+
+    # 放置 tmux セッションの掃除 (prefix+X で interactive / launchd で --auto 定期実行)。
+    # ロジックは bash ファイルとして切り出し、ここからは source で配線する。
+    file.".config/tmux/session-gc.sh" = {
+      executable = true;
+      source = ./scripts/tmux-session-gc.sh;
+    };
 
     file.".config/tmux/session-color.sh" = {
       executable = true;
@@ -148,27 +162,83 @@ in
       ]
     '';
 
-    # Zed のターミナルから呼び出して、プロジェクト (repo__branch) ごとに tmux セッションを
-    # attach / 新規作成する launcher。worktree-switcher.sh と同じ命名規則。
-    file.".config/tmux/zed-launcher.sh" = {
-      executable = true;
+    # MCP サーバ定義 (Claude Code 等)。secret なし。
+    # force: 同一内容だと link 生成が skip され手動ファイルのまま残るため
+    file.".mcp.json" = {
+      force = true;
       text = ''
-        #!/usr/bin/env bash
-        set -euo pipefail
+        {
+          "mcpServers": {
+            "voicevox": {
+              "command": "npx",
+              "args": ["@t09tanaka/mcp-simple-voicevox"]
+            }
+          }
+        }
+      '';
+    };
 
-        if git rev-parse --git-dir >/dev/null 2>&1; then
-          repo_root=$(git rev-parse --show-toplevel)
-          repo_name=$(git -C "$repo_root" remote get-url origin 2>/dev/null \
-            | sed 's|.*/||; s|\.git$||')
-          [ -z "$repo_name" ] && repo_name=$(basename "$repo_root")
-          branch=$(git -C "$repo_root" symbolic-ref --short HEAD 2>/dev/null \
-            || git -C "$repo_root" rev-parse --short HEAD)
-          session_name=$(printf '%s__%s' "$repo_name" "$branch" | tr ':./' '___')
-        else
-          session_name=$(basename "$PWD" | tr ':./' '___')
-        fi
+    # herdr (tmux 代替のターミナルマルチプレクサ) の設定
+    file.".config/herdr/config.toml" = {
+      force = true;
+      text = ''
+        [terminal]
+        # デフォルトは $SHELL → /bin/sh fallback。server が launchd/systemd 等の
+        # $SHELL 無し環境で起動されると pane が /bin/sh に落ちるため、Nix の zsh に固定する。
+        default_shell = "${pkgs.zsh}/bin/zsh"
+        # "auto" は macOS のみ login shell。WSL でも ~/.zprofile (pyenv PATH 等) を
+        # 読ませたいので明示的に login にする。
+        shell_mode = "login"
 
-        exec tmux new-session -A -s "$session_name" -c "$PWD"
+        [ui]
+        agent_panel_sort = "priority"
+      '';
+    };
+
+    # zeno.zsh の snippet 定義 (ZENO_HOME=~/.config/zeno)
+    file.".config/zeno/config.yml" = {
+      force = true;
+      text = ''
+        snippets:
+          - name: open pm-agent-skills
+            keyword: pma
+            snippet: cd "$HOME/Library/CloudStorage/GoogleDrive-shota.miyaki@emuniinc.jp/マイドライブ/pm-agent-skills"
+
+          - name: open pm-agent-skills and claude
+            keyword: pmac
+            snippet: cd "$HOME/Library/CloudStorage/GoogleDrive-shota.miyaki@emuniinc.jp/マイドライブ/pm-agent-skills" && claude
+
+          - name: claude
+            keyword: cl
+            snippet: claude
+
+          - name: tmux
+            keyword: tm
+            snippet: tmux
+
+          - name: tmux attach
+            keyword: tma
+            snippet: tmux attach
+
+          - name: tmux attach to session
+            keyword: tmat
+            snippet: "tmux attach -t "
+
+          - name: tmux new session
+            keyword: tmn
+            snippet: "tmux new -s "
+
+          - name: tmux list sessions
+            keyword: tml
+            snippet: tmux ls
+
+          - name: tmux kill session
+            keyword: tmk
+            snippet: "tmux kill-session -t "
+
+          - name: tmux kill server
+            keyword: tmka
+            snippet: tmux kill-server
       '';
     };
 
@@ -396,6 +466,15 @@ in
         fi
       '';
     };
+
+    # zeno.zsh: 実行時に deno が node_modules を生成する (deno cache --node-modules-dir=auto)
+    # ため writable パスが要る。flake input は store の read-only なので、
+    # ~/.local/share へコピーしてから source する。
+    activation.copyZenoZsh = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      run rm -rf "$HOME/.local/share/zeno-zsh"
+      run cp -R ${zeno-zsh} "$HOME/.local/share/zeno-zsh"
+      run chmod -R u+w "$HOME/.local/share/zeno-zsh"
+    '';
   };
 
   programs = {
@@ -424,6 +503,11 @@ in
     atuin = {
       enable = true;
       flags = [ "--disable-up-arrow" ];
+      # 手書き ~/.config/atuin/config.toml の非デフォルト項目のみ移行
+      settings = {
+        enter_accept = true;
+        sync.records = true;
+      };
     };
     tealdeer.enable = true;
     nix-index = {
@@ -444,11 +528,95 @@ in
         set-hook -g session-renamed 'run-shell -b "~/.config/tmux/session-color.sh #{session_name}"'
         bind-key u display-popup -E -w 80% -h 60% "~/.config/tmux/fzf-url.sh #{pane_id}"
         bind-key w display-popup -E -d '#{pane_current_path}' -w 80% -h 60% "~/.config/tmux/worktree-switcher.sh"
+        # prefix+k: 放置セッションを fzf で選んで掃除 (⚠=開発プロセス動作中は消すと失う)
+        # Shift を使う大文字キーが効かない環境のため、小文字 k (Kill 連想) を採用。
+        # 標準の prefix+x(kill-pane) とは別の物理キーで誤爆しにくい。
+        bind-key k display-popup -E -w 85% -h 70% "~/.config/tmux/session-gc.sh"
       '';
     };
     direnv = {
       enable = true;
       nix-direnv.enable = true;
+    };
+
+    # 手書き ~/.gitconfig から移行。credential helper は gh auth (nix profile 側の gh を PATH 解決)。
+    git = {
+      enable = true;
+      lfs.enable = true;
+      ignores = [ "**/.claude/settings.local.json" ];
+      settings = {
+        user = {
+          name = "myksyut";
+          email = "wizard1026miya@gmail.com";
+        };
+        credential = {
+          # 空文字 helper で既存 helper リスト (osxkeychain 等) をクリアしてから gh を登録
+          "https://github.com".helper = [
+            ""
+            "!gh auth git-credential"
+          ];
+          "https://gist.github.com".helper = [
+            ""
+            "!gh auth git-credential"
+          ];
+        };
+      };
+    };
+
+    # シェル設定。従来は ~/.zshrc / ~/.zshenv / ~/.zprofile を手書きしていたものを移行。
+    # atuin / zoxide / direnv / nix-index の init は各モジュール (enableZshIntegration) が
+    # 自動注入するため、initExtra には書かない (二重起動防止)。
+    zsh = {
+      enable = true;
+      enableCompletion = true;
+      autosuggestion.enable = true;
+      syntaxHighlighting.enable = true;
+      envExtra = ''
+        [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+      '';
+      profileExtra = ''
+        command -v pyenv >/dev/null 2>&1 && eval "$(pyenv init --path)"
+
+        # Added by OrbStack: command-line tools and integration
+        source ~/.orbstack/shell/init.zsh 2>/dev/null || :
+      '';
+      sessionVariables = {
+        ZENO_HOME = "$HOME/.config/zeno";
+        ZENO_ENABLE_SOCK = "1";
+      };
+      oh-my-zsh = {
+        enable = true;
+        theme = "robbyrussell";
+        plugins = [ "git" ];
+      };
+      initExtraBeforeCompInit = ''
+        # herdr zsh 補完 (compinit 前に fpath へ追加)
+        fpath+=("${pkgs.herdr}/share/zsh/site-functions")
+      '';
+      initExtra = ''
+        # pyenv (legacy: 新規は uv 推奨だが既存互換のため維持)
+        export PYENV_ROOT="$HOME/.pyenv"
+        [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+        command -v pyenv >/dev/null 2>&1 && eval "$(pyenv init - zsh)"
+        export PATH="$HOME/.local/bin:$PATH"
+
+        # mise (asdf 後継のランタイムマネージャ)
+        command -v mise >/dev/null 2>&1 && eval "$(mise activate zsh)"
+
+        # Nix版 zed-editor の CLI バイナリは zeditor
+        command -v zeditor >/dev/null 2>&1 && alias zed=zeditor
+
+        # zeno.zsh (flake input を ~/.local/share へコピー済み。activation.copyZenoZsh 参照)
+        # upstream に zeno.plugin.zsh は無い (旧環境では手動 symlink で対応していた) ので
+        # 本体の zeno.zsh を直接 source し、ZENO_ROOT も明示する ($0 解決に頼らない)。
+        if [ -f "$HOME/.local/share/zeno-zsh/zeno.zsh" ]; then
+          export ZENO_ROOT="$HOME/.local/share/zeno-zsh"
+          source "$HOME/.local/share/zeno-zsh/zeno.zsh"
+          bindkey ' '  zeno-auto-snippet
+          bindkey '^m' zeno-auto-snippet-and-accept-line
+          bindkey '^i' zeno-completion
+        fi
+      '';
     };
 
     # Ghostty / Zed は GUI アプリで WSL (NixOS) では実用上意味がないため Darwin のみ enable。
@@ -457,13 +625,30 @@ in
       enable = true;
       package = null;
       settings = {
+        # --- Zed (Nstlgy Glass Dark) に寄せた appearance ---
+        # シンタックスパレットは nord 維持。背景だけ Zed の水色ガラス
+        # (background = #1f4a6a @ alpha 80% + blur) に合わせる。
         theme = "nord";
+        background = "1f4a6a";
+        background-opacity = 0.80;
+        background-blur-radius = 20;
+        selection-background = "2a6885"; # Zed の surface.background 色
+        # Zed の buffer font (JetBrainsMono Nerd Font 15, calt/liga 有効) に統一
+        font-family = "JetBrainsMono Nerd Font";
+        font-size = 15;
+        font-feature = [
+          "calt"
+          "liga"
+          "-dlig"
+        ];
+        adjust-cell-height = "15%"; # Zed line_height "comfortable" 寄りの行間
+        cursor-style = "bar"; # Zed の cursor_shape = bar
+        cursor-style-blink = false; # Zed の cursor_blink = false
+        macos-titlebar-style = "tabs"; # タブをタイトルバー同居させてエディタ風に
+
         window-padding-x = 20;
         window-padding-y = 5;
         window-padding-balance = true;
-        background-opacity = 0.80;
-        background-blur-radius = 20;
-        font-feature = "-dlig";
         fullscreen = true;
         macos-non-native-fullscreen = true;
         keybind = [ "ctrl+j=ignore" ];
@@ -508,8 +693,6 @@ in
           dock = "hidden"; # bottom dock を使わず、エディタタブで運用 (cmd-shift-enter で新規)
           copy_on_select = true;
           blinking = "on";
-          # Zed ターミナル起動時に repo__branch 名の tmux セッションへ attach (無ければ新規作成)
-          shell.program = "${config.home.homeDirectory}/.config/tmux/zed-launcher.sh";
         };
 
         # agent
@@ -908,6 +1091,28 @@ in
           };
         }
       ];
+    };
+  };
+
+  # 放置 tmux セッションの定期掃除 (darwin のみ)。prefix+X の手動掃除に加え、
+  # idle が閾値 (12h) を超え かつ 開発プロセス (claude/node 等) が動いていない
+  # セッションを 6h ごとに無確認 kill する保険。判定ロジックは session-gc.sh と共通。
+  launchd.agents.tmux-session-gc = lib.mkIf isDarwin {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        "${config.home.homeDirectory}/.config/tmux/session-gc.sh"
+        "--auto"
+      ];
+      EnvironmentVariables = {
+        # launchd は PATH 空で起動するため tmux/pgrep/ps/grep を解決できるよう補う。
+        PATH = "${config.home.profileDirectory}/bin:/run/current-system/sw/bin:/usr/bin:/bin";
+        TMUX_GC_IDLE_HOURS = "12";
+      };
+      StartInterval = 21600; # 6h ごと
+      ProcessType = "Background";
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/tmux-session-gc.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/tmux-session-gc.log";
     };
   };
 }

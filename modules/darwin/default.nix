@@ -10,11 +10,11 @@
   nixpkgs.overlays = [
     (_final: prev: {
       raycast = prev.raycast.overrideAttrs (_old: rec {
-        version = "1.104.16";
+        version = "1.104.23";
         src = prev.fetchurl {
           name = "Raycast.dmg";
           url = "https://releases.raycast.com/releases/${version}/download?build=arm";
-          hash = "sha256-y/MPOo6Iklf9hOH/RRBDOjdX7x8tvfIF9NB42grfPC8=";
+          hash = "sha256-/aotbycZmY8FSOLzUSmRMMfzwsN/2v08oNe4iteY2oE=";
         };
       });
     })

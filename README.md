@@ -117,6 +117,7 @@
 | パッケージ | 解説 |
 |---|---|
 | **tmux** | ターミナル多重化。home-manager 管理で `~/.config/tmux/tmux.conf` 自動生成 |
+| **herdr** | エージェント対応ターミナルマルチプレクサ。tmux の代替として開発ツールに採用 (`~/.config/herdr/config.toml` も Nix 管理) |
 | **deno** | TypeScript ランタイム (Rust 製)。zeno.zsh の必須依存 |
 | **claude-code** | Anthropic Claude Code CLI（バイナリ名: `claude`） |
 
@@ -287,14 +288,6 @@ NuPhy Air75 V3 を **Mac モードのまま macOS / Windows 両方で使い回�
 - **command-not-found index 更新**: 週次ビルドのインデックスは `nix run .#update && nix run .#switch` で更新
 
 ## 今後の追加予定
-
-### システム / ユーザーパッケージ
-- [ ] ghostty (`programs.ghostty` で設定管理)
-- [ ] zed (`programs.zed-editor` で設定管理)
-
-### シェル環境の整理
-- [ ] `~/.zshrc` の home-manager 管理化を検討
-- [ ] zeno.zsh / pyenv 設定を home-manager で再宣言
 
 ### プロジェクトごとの devShell 運用
 - 各プロジェクトに `flake.nix` を置いて言語別環境を定義

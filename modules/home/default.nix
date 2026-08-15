@@ -192,6 +192,33 @@ in
 
         [ui]
         agent_panel_sort = "priority"
+
+        [keys]
+        # Command + T creates a new space (workspace). Same as the sidebar "new" button.
+        # Ghostty sends the kitty CSI-u form (ESC[116;9u) so the Super modifier reaches herdr.
+        new_workspace = "cmd+t"
+        # Command + W closes the current space.
+        close_workspace = "cmd+w"
+
+        # Pane focus. Cmd+H is macOS Hide, so use Cmd+Opt+arrows (Ghostty's split navigation).
+        focus_pane_left = "cmd+alt+left"
+        focus_pane_down = "cmd+alt+down"
+        focus_pane_up = "cmd+alt+up"
+        focus_pane_right = "cmd+alt+right"
+        # Splits. Same chords as Ghostty's native new_split.
+        split_vertical = "cmd+d"
+        split_horizontal = "cmd+shift+d"
+        close_pane = "cmd+x"
+        zoom = "cmd+shift+enter"
+        cycle_pane_previous = "cmd+["
+        cycle_pane_next = "cmd+]"
+
+        # Tabs. Cmd+T is already new_workspace, so new_tab is Cmd+Shift+T.
+        new_tab = "cmd+shift+t"
+        close_tab = "cmd+shift+w"
+        previous_tab = "cmd+shift+["
+        next_tab = "cmd+shift+]"
+        switch_tab = "cmd+1..9"
       '';
     };
 
@@ -643,7 +670,46 @@ in
         window-padding-balance = true;
         fullscreen = true;
         macos-non-native-fullscreen = true;
-        keybind = [ "ctrl+j=ignore" ];
+        # Ghostty is a herdr host: every new surface attaches to the persistent session.
+        # Cmd shortcuts below are therefore always in-herdr, never a bare shell.
+        command = "${pkgs.herdr}/bin/herdr";
+        keybind = [
+          "ctrl+j=ignore"
+          # Command+T sends kitty CSI-u cmd+t (ESC[116;9u); Ghostty's own new_tab is unbound.
+          # herdr binds this as new_workspace. Plain ctrl+t stays with the shell.
+          "super+t=csi:116;9u"
+          # Command+W sends kitty CSI-u cmd+w (ESC[119;9u); Ghostty's own close_surface is unbound.
+          # herdr binds this as close_workspace. Plain ctrl+w stays with the shell.
+          "super+w=csi:119;9u"
+          # Pane focus: Cmd+Opt+arrows. Super=8 Alt=2 → modifier 11. Arrow CSI-u codes from kitty.
+          "super+alt+arrow_left=csi:57350;11u"
+          "super+alt+arrow_down=csi:57353;11u"
+          "super+alt+arrow_up=csi:57352;11u"
+          "super+alt+arrow_right=csi:57351;11u"
+          # Splits. Ghostty's own new_split is unbound so herdr receives the Super chord.
+          "super+d=csi:100;9u"
+          "super+shift+d=csi:100;10u"
+          "super+x=csi:120;9u"
+          # Zoom. Ghostty's own toggle_split_zoom is unbound.
+          "super+shift+enter=csi:13;10u"
+          # Cycle panes. Ghostty's own goto_split is unbound.
+          "super+[=csi:91;9u"
+          "super+]=csi:93;9u"
+          # Tabs. Ghostty's own new_tab / close_window / tab cycling / goto_tab are unbound.
+          "super+shift+t=csi:116;10u"
+          "super+shift+w=csi:119;10u"
+          "super+shift+[=csi:91;10u"
+          "super+shift+]=csi:93;10u"
+          "super+1=csi:49;9u"
+          "super+2=csi:50;9u"
+          "super+3=csi:51;9u"
+          "super+4=csi:52;9u"
+          "super+5=csi:53;9u"
+          "super+6=csi:54;9u"
+          "super+7=csi:55;9u"
+          "super+8=csi:56;9u"
+          "super+9=csi:57;9u"
+        ];
       };
     };
 

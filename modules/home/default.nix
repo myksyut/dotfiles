@@ -481,24 +481,6 @@ in
     # zsh を home-manager 配下に置く。これを有効化しないと zoxide/atuin/direnv 等の
     # zsh integration が ~/.zshrc に書き出されず、シェルが素のままになる
     # (Linux/WSL では `zsh-newuser-install` のプロンプトに毎回当たる)。
-    zsh = {
-      enable = true;
-      enableCompletion = true;
-      autosuggestion.enable = true;
-      syntaxHighlighting.enable = true;
-      history = {
-        size = 100000;
-        save = 100000;
-        path = "$HOME/.zsh_history";
-        ignoreDups = true;
-        share = true;
-      };
-      # 企業 TLS MITM (Zscaler 等) 環境向けに、追加 CA bundle が居る場合だけ
-      # Node 系 (claude-code 等) に渡す。バンドル不在の通常環境ではノーオペ。
-      initContent = ''
-        [ -f /etc/nix/custom-bundle.pem ] && export NODE_EXTRA_CA_CERTS=/etc/nix/custom-bundle.pem
-      '';
-    };
     zoxide.enable = true;
     atuin = {
       enable = true;
@@ -571,6 +553,16 @@ in
       enableCompletion = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
+      history = {
+        size = 100000;
+        save = 100000;
+        path = "$HOME/.zsh_history";
+        ignoreDups = true;
+        share = true;
+      };
+      initContent = ''
+        [ -f /etc/nix/custom-bundle.pem ] && export NODE_EXTRA_CA_CERTS=/etc/nix/custom-bundle.pem
+      '';
       envExtra = ''
         [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
       '';

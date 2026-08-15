@@ -50,7 +50,7 @@
     let
       # ---- macOS (nix-darwin) ----
       darwinSystem = "aarch64-darwin";
-      darwinHostname = "miyakinoMacBook-Air";
+      darwinHostname = "miyagishoutanoMacBook-Pro";
 
       # ---- Windows (WSL / NixOS-WSL) ----
       # WSL distro 名。`wsl -d <name>` で起動する識別子。Hostname としても利用。

@@ -10,6 +10,7 @@ let
   isDarwin = pkgs.stdenv.isDarwin;
 in
 {
+  imports = [ ./neovim.nix ];
   home = {
     stateVersion = "24.11";
 
@@ -18,6 +19,8 @@ in
       # Nix が用意したブラウザバンドルへパスを固定する。
       PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
       PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+      EDITOR = "nvim";
+      VISUAL = "nvim";
     };
 
     packages =
@@ -34,6 +37,8 @@ in
 
         gh
         lazygit
+        yazi
+        (callPackage ../../pkgs/hunk { })
         delta
         himalaya
         (callPackage ../../pkgs/gwq { })
@@ -194,11 +199,10 @@ in
         agent_panel_sort = "priority"
 
         [keys]
-        # Command + T creates a new space (workspace). Same as the sidebar "new" button.
-        # Ghostty sends the kitty CSI-u form (ESC[116;9u) so the Super modifier reaches herdr.
-        new_workspace = "cmd+t"
-        # Command + W closes the current space.
-        close_workspace = "cmd+w"
+        # Space = macOS window, tab = in-space tab.
+        # Ghostty forwards Super as kitty CSI-u so the modifier reaches herdr.
+        new_workspace = "cmd+n"
+        close_workspace = "cmd+shift+w"
 
         # Pane focus. Cmd+H is macOS Hide, so use Cmd+Opt+arrows (Ghostty's split navigation).
         focus_pane_left = "cmd+alt+left"
@@ -213,9 +217,9 @@ in
         cycle_pane_previous = "cmd+["
         cycle_pane_next = "cmd+]"
 
-        # Tabs. Cmd+T is already new_workspace, so new_tab is Cmd+Shift+T.
-        new_tab = "cmd+shift+t"
-        close_tab = "cmd+shift+w"
+        # Tabs. Same chords as a browser.
+        new_tab = "cmd+t"
+        close_tab = "cmd+w"
         previous_tab = "cmd+shift+["
         next_tab = "cmd+shift+]"
         switch_tab = "cmd+1..9"
@@ -645,13 +649,13 @@ in
       package = null;
       settings = {
         # --- Zed (Nstlgy Glass Dark) に寄せた appearance ---
-        # シンタックスパレットは nord 維持。背景だけ Zed の水色ガラス
-        # (background = #1f4a6a @ alpha 80% + blur) に合わせる。
+        # シンタックスパレットは nord 維持。背景は Zed の水色ガラスを
+        # 基に、もう少し明るい青 (#2a638c @ alpha 80% + blur)。
         theme = "nord";
-        background = "1f4a6a";
-        background-opacity = 0.80;
+        background = "2a638c";
+        background-opacity = 0.60;
         background-blur-radius = 20;
-        selection-background = "2a6885"; # Zed の surface.background 色
+        selection-background = "3586a8"; # 背景より一段明るい surface 色
         # Zed の buffer font (JetBrainsMono Nerd Font 15, calt/liga 有効) に統一
         font-family = "JetBrainsMono Nerd Font";
         font-size = 15;
@@ -674,12 +678,19 @@ in
         # Cmd shortcuts below are therefore always in-herdr, never a bare shell.
         command = "${pkgs.herdr}/bin/herdr";
         keybind = [
+          # Pi / TUI editors: send Shift+Enter as Kitty CSI-u (ESC[13;2u).
+          # text:\\n is ambiguous (Pi treats \\n as submit when kitty protocol is off),
+          # and Application Support/ghostty/config was remapping it to ESC+CR which herdr strips.
+          "shift+enter=csi:13;2u"
           "ctrl+j=ignore"
+          # Command+N sends kitty CSI-u cmd+n (ESC[110;9u); Ghostty's own new_window is unbound.
+          # herdr binds this as new_workspace. Plain ctrl+n stays with the shell.
+          "super+n=csi:110;9u"
           # Command+T sends kitty CSI-u cmd+t (ESC[116;9u); Ghostty's own new_tab is unbound.
-          # herdr binds this as new_workspace. Plain ctrl+t stays with the shell.
+          # herdr binds this as new_tab. Plain ctrl+t stays with the shell.
           "super+t=csi:116;9u"
           # Command+W sends kitty CSI-u cmd+w (ESC[119;9u); Ghostty's own close_surface is unbound.
-          # herdr binds this as close_workspace. Plain ctrl+w stays with the shell.
+          # herdr binds this as close_tab. Plain ctrl+w stays with the shell.
           "super+w=csi:119;9u"
           # Pane focus: Cmd+Opt+arrows. Super=8 Alt=2 → modifier 11. Arrow CSI-u codes from kitty.
           "super+alt+arrow_left=csi:57350;11u"
@@ -695,8 +706,8 @@ in
           # Cycle panes. Ghostty's own goto_split is unbound.
           "super+[=csi:91;9u"
           "super+]=csi:93;9u"
-          # Tabs. Ghostty's own new_tab / close_window / tab cycling / goto_tab are unbound.
-          "super+shift+t=csi:116;10u"
+          # Tabs / spaces. Ghostty's own new_tab / close_window / tab cycling / goto_tab are unbound.
+          # Cmd+Shift+W is close_workspace. Cmd+Shift+T is unused.
           "super+shift+w=csi:119;10u"
           "super+shift+[=csi:91;10u"
           "super+shift+]=csi:93;10u"

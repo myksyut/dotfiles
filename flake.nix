@@ -281,6 +281,8 @@
             pi-agent-pi = extensions.agentPi;
             pi-hunk = extensions.piHunk;
             plannotator-pi-extension = extensions.plannotator;
+            pi-context-view = extensions.contextView;
+            pi-claude-auth = extensions.claudeAuth;
           };
         ${wslSystem} =
           let
@@ -293,6 +295,8 @@
             pi-agent-pi = extensions.agentPi;
             pi-hunk = extensions.piHunk;
             plannotator-pi-extension = extensions.plannotator;
+            pi-context-view = extensions.contextView;
+            pi-claude-auth = extensions.claudeAuth;
           };
       };
 

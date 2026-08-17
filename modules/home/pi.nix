@@ -30,6 +30,8 @@ let
       --arg agentPi '${extensions.agentPi}' \
       --arg piHunk '${extensions.piHunk}' \
       --arg plannotator '${extensions.plannotator}' \
+      --arg contextView '${extensions.contextView}' \
+      --arg claudeAuth '${extensions.claudeAuth}' \
       '
         .packages = (
           ((.packages // []) | map(select(
@@ -38,9 +40,12 @@ let
               . != "git:github.com/myksyut/agent-pi" and
               . != "npm:pi-hunk" and
               . != "npm:@plannotator/pi-extension" and
-              (test("^/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension)-") | not)
+              (test("^npm:pi-context-view(@.*)?$") | not) and
+              (test("^npm:pi-claude-auth(@.*)?$") | not) and
+              (test("^npm:@pankajudhas81/pi-claude-auth(@.*)?$") | not) and
+              (test("^/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-claude-auth)-") | not)
             )
-          ))) + [$agentPi, $piHunk, $plannotator]
+          ))) + [$agentPi, $piHunk, $plannotator, $contextView, $claudeAuth]
         )
       ' "$settings_path" > "$tmp"
 

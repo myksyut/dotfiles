@@ -14,6 +14,10 @@ let
       url = "https://github.com/modem-dev/hunk/releases/download/v${version}/hunkdiff-darwin-arm64.tar.gz";
       hash = "sha256-6CX008IQFt5cdWoTK2ttZrAqFt3xP1PhX8dY+9zToFI=";
     };
+    x86_64-linux = {
+      url = "https://github.com/modem-dev/hunk/releases/download/v${version}/hunkdiff-linux-x64.tar.gz";
+      hash = "sha256-a3KOOZtZ52ybfxtza8nTGphCXFYIjjFiRcoCXjsNKx0=";
+    };
   };
 
   srcInfo =

@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "agent-pi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785749518,
+        "narHash": "sha256-7XHZOSADflki4wLA3+dT9q7Gf6H3iCqBRF7GrR0M9OY=",
+        "owner": "myksyut",
+        "repo": "agent-pi",
+        "rev": "6e05fd10967230fe3c18100923275dfe05980f79",
+        "type": "github"
+      },
+      "original": {
+        "owner": "myksyut",
+        "repo": "agent-pi",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -153,6 +169,7 @@
     },
     "root": {
       "inputs": {
+        "agent-pi": "agent-pi",
         "git-hooks": "git-hooks",
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",

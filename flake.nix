@@ -33,6 +33,12 @@
       url = "github:yuki-yano/zeno.zsh/37bebf0e1737de000abe0d58f70d41b8ef61f9b4";
       flake = false;
     };
+    # Custom Pi orchestration package. Override with
+    # `--override-input agent-pi path:$HOME/src/agent-pi` while developing.
+    agent-pi = {
+      url = "github:myksyut/agent-pi";
+      flake = false;
+    };
   };
 
   outputs =
@@ -46,6 +52,7 @@
       treefmt-nix,
       git-hooks,
       zeno-zsh,
+      agent-pi,
     }:
     let
       # ---- macOS (nix-darwin) ----
@@ -108,7 +115,9 @@
           useUserPackages = true;
           # 管理対象パスに既存ファイルがある場合は <file>.before-nix.backup へ退避してから link
           backupFileExtension = "before-nix.backup";
-          extraSpecialArgs = { inherit username zeno-zsh; };
+          extraSpecialArgs = {
+            inherit username zeno-zsh agent-pi;
+          };
           users.${username} = {
             imports = [
               nix-index-database.homeModules.nix-index
@@ -255,6 +264,36 @@
             ''
           );
         };
+      };
+
+      # ===========================================================
+      # Pi extension packages (両 system)
+      # ===========================================================
+      packages = {
+        ${darwinSystem} =
+          let
+            extensions = import ./pkgs/pi-extensions {
+              pkgs = darwinPkgs;
+              agentPiSrc = agent-pi;
+            };
+          in
+          {
+            pi-agent-pi = extensions.agentPi;
+            pi-hunk = extensions.piHunk;
+            plannotator-pi-extension = extensions.plannotator;
+          };
+        ${wslSystem} =
+          let
+            extensions = import ./pkgs/pi-extensions {
+              pkgs = wslPkgs;
+              agentPiSrc = agent-pi;
+            };
+          in
+          {
+            pi-agent-pi = extensions.agentPi;
+            pi-hunk = extensions.piHunk;
+            plannotator-pi-extension = extensions.plannotator;
+          };
       };
 
       # ===========================================================

@@ -87,6 +87,93 @@ in
       ".pi/agent/keybindings.json".text = builtins.toJSON {
         "app.thinking.cycle" = "ctrl+shift+t";
       };
+
+      # agent-pi model routing (roles + difficulty tiers). Distinct from
+      # ~/.pi/agent/models.json which is Pi's provider catalog.
+      ".pi/agents/models.json".text = builtins.toJSON {
+        default = {
+          provider = "xai";
+          model = "grok-4.6";
+        };
+        tiers = {
+          easy = {
+            provider = "openai-codex";
+            model = "gpt-5.6-luna";
+          };
+          mid = {
+            provider = "xai";
+            model = "grok-4.6";
+          };
+          hard = {
+            provider = "anthropic";
+            model = "claude-fable-5";
+          };
+        };
+        kinds = {
+          design = {
+            provider = "anthropic";
+            model = "claude-fable-5";
+          };
+          architecture = {
+            provider = "anthropic";
+            model = "claude-fable-5";
+          };
+          review = {
+            provider = "openai-codex";
+            model = "gpt-5.6-sol";
+          };
+        };
+        agents = {
+          scout = {
+            provider = "x-ai";
+            model = "grok-4.1-fast";
+          };
+          ranger = {
+            provider = "openai-codex";
+            model = "gpt-5.4";
+          };
+          builder = {
+            provider = "anthropic";
+            model = "claude-haiku-4-5";
+          };
+          paladin = {
+            provider = "anthropic";
+            model = "claude-opus-4-6";
+          };
+          reviewer = {
+            provider = "openai-codex";
+            model = "gpt-5.6-sol";
+          };
+          warden = {
+            provider = "anthropic";
+            model = "claude-opus-4-6";
+          };
+          planner = {
+            provider = "openai-codex";
+            model = "gpt-5.4";
+          };
+          tester = {
+            provider = "openai-codex";
+            model = "gpt-5.4";
+          };
+          herald = {
+            provider = "openai-codex";
+            model = "gpt-5.4";
+          };
+          "red-team" = {
+            provider = "openai-codex";
+            model = "gpt-5.4";
+          };
+          knight = {
+            provider = "openai-codex";
+            model = "gpt-5.4";
+          };
+          "rlm-subcall" = {
+            provider = "anthropic";
+            model = "claude-haiku-4-5";
+          };
+        };
+      };
     };
 
     activation.configurePiPackages = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

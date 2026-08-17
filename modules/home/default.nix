@@ -234,14 +234,6 @@ in
       force = true;
       text = ''
         snippets:
-          - name: open pm-agent-skills
-            keyword: pma
-            snippet: cd "$HOME/Library/CloudStorage/GoogleDrive-shota.miyaki@emuniinc.jp/マイドライブ/pm-agent-skills"
-
-          - name: open pm-agent-skills and claude
-            keyword: pmac
-            snippet: cd "$HOME/Library/CloudStorage/GoogleDrive-shota.miyaki@emuniinc.jp/マイドライブ/pm-agent-skills" && claude
-
           - name: claude
             keyword: cl
             snippet: claude

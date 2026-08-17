@@ -33,19 +33,22 @@ let
       --arg contextView '${extensions.contextView}' \
       --arg claudeAuth '${extensions.claudeAuth}' \
       '
+        def source:
+          if type == "string" then .
+          elif type == "object" then (.source // "")
+          else ""
+          end;
+        def managed:
+          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:pi-hunk|npm:@plannotator/pi-extension|npm:pi-context-view(@.*)?$|npm:pi-claude-auth(@.*)?$|npm:@pankajudhas81/pi-claude-auth(@.*)?$|/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-claude-auth)-)"));
         .packages = (
-          ((.packages // []) | map(select(
-            (type != "string") or (
-              . != "git:github.com/ruizrica/agent-pi" and
-              . != "git:github.com/myksyut/agent-pi" and
-              . != "npm:pi-hunk" and
-              . != "npm:@plannotator/pi-extension" and
-              (test("^npm:pi-context-view(@.*)?$") | not) and
-              (test("^npm:pi-claude-auth(@.*)?$") | not) and
-              (test("^npm:@pankajudhas81/pi-claude-auth(@.*)?$") | not) and
-              (test("^/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-claude-auth)-") | not)
-            )
-          ))) + [$agentPi, $piHunk, $plannotator, $contextView, $claudeAuth]
+          ((.packages // []) | map(select(managed | not)))
+          + [
+            { source: $agentPi, extensions: ["!extensions/user-question.ts"] },
+            $piHunk,
+            $plannotator,
+            $contextView,
+            $claudeAuth
+          ]
         )
       ' "$settings_path" > "$tmp"
 

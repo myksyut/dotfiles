@@ -10,7 +10,10 @@ let
   isDarwin = pkgs.stdenv.isDarwin;
 in
 {
-  imports = [ ./neovim.nix ];
+  imports = [
+    ./neovim.nix
+    ./pi.nix
+  ];
   home = {
     stateVersion = "24.11";
 

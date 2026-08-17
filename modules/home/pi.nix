@@ -58,8 +58,6 @@ let
 in
 {
   home = {
-    sessionVariables.AGENT_PI_PLAN_REVIEWER = "plannotator";
-
     file = {
       ".pi/agent/hunk.json".text = builtins.toJSON {
         review = "off";

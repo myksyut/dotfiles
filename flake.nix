@@ -283,6 +283,14 @@
             plannotator-pi-extension = extensions.plannotator;
             pi-context-view = extensions.contextView;
             pi-claude-auth = extensions.claudeAuth;
+            pi-web-access = extensions.webAccess;
+            pi-session-recall = extensions.sessionRecall;
+            pi-fff = extensions.piFff;
+            pi-lens = extensions.piLens;
+            rpiv-ask-user-question = extensions.rpivAskUser;
+            pi-btw = extensions.piBtw;
+            pi-codex-image-gen = extensions.codexImageGen;
+            pi-vcc = extensions.piVcc;
           };
         ${wslSystem} =
           let
@@ -297,6 +305,14 @@
             plannotator-pi-extension = extensions.plannotator;
             pi-context-view = extensions.contextView;
             pi-claude-auth = extensions.claudeAuth;
+            pi-web-access = extensions.webAccess;
+            pi-session-recall = extensions.sessionRecall;
+            pi-fff = extensions.piFff;
+            pi-lens = extensions.piLens;
+            rpiv-ask-user-question = extensions.rpivAskUser;
+            pi-btw = extensions.piBtw;
+            pi-codex-image-gen = extensions.codexImageGen;
+            pi-vcc = extensions.piVcc;
           };
       };
 

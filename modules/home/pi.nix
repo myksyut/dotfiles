@@ -32,6 +32,14 @@ let
       --arg plannotator '${extensions.plannotator}' \
       --arg contextView '${extensions.contextView}' \
       --arg claudeAuth '${extensions.claudeAuth}' \
+      --arg webAccess '${extensions.webAccess}' \
+      --arg sessionRecall '${extensions.sessionRecall}' \
+      --arg piFff '${extensions.piFff}' \
+      --arg piLens '${extensions.piLens}' \
+      --arg rpivAskUser '${extensions.rpivAskUser}' \
+      --arg piBtw '${extensions.piBtw}' \
+      --arg codexImageGen '${extensions.codexImageGen}' \
+      --arg piVcc '${extensions.piVcc}' \
       '
         def source:
           if type == "string" then .
@@ -39,7 +47,7 @@ let
           else ""
           end;
         def managed:
-          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:pi-hunk|npm:@plannotator/pi-extension|npm:pi-context-view(@.*)?$|npm:pi-claude-auth(@.*)?$|npm:@pankajudhas81/pi-claude-auth(@.*)?$|/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-claude-auth)-)"));
+          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:(pi-hunk|@plannotator/pi-extension|pi-context-view|pi-claude-auth|@pankajudhas81/pi-claude-auth|pi-ask-user|pi-web-access|@ogulcancelik/pi-session-recall|@ff-labs/pi-fff|pi-lens|@juicesharp/rpiv-ask-user-question|pi-btw|pi-codex-image-gen|@sting8k/pi-vcc)(@.*)?$|/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-claude-auth|pi-web-access|pi-session-recall|pi-fff|pi-lens|rpiv-ask-user-question|pi-btw|pi-codex-image-gen|pi-vcc)-)"));
         .packages = (
           ((.packages // []) | map(select(managed | not)))
           + [
@@ -47,7 +55,15 @@ let
             $piHunk,
             $plannotator,
             $contextView,
-            $claudeAuth
+            $claudeAuth,
+            $webAccess,
+            $sessionRecall,
+            $piFff,
+            $piLens,
+            $rpivAskUser,
+            $piBtw,
+            $codexImageGen,
+            $piVcc
           ]
         )
       ' "$settings_path" > "$tmp"

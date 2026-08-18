@@ -665,7 +665,7 @@ in
         adjust-cell-height = "15%"; # Zed line_height "comfortable" 寄りの行間
         cursor-style = "bar"; # Zed の cursor_shape = bar
         cursor-style-blink = false; # Zed の cursor_blink = false
-        macos-titlebar-style = "tabs"; # タブをタイトルバー同居させてエディタ風に
+        macos-titlebar-style = "hidden"; # herdrがタブを持つので、Ghostty側の青い帯は出さない
 
         window-padding-x = 20;
         window-padding-y = 5;

@@ -5,16 +5,15 @@
 
   nixpkgs.config.allowUnfree = true;
 
-  # nixpkgs の raycast (1.104.10) は既存ローカル DB より古く起動拒否されるため、
-  # 公式リリースから最新版を取得する overlay を当てる。nixpkgs が追いついたら削除可。
+  # nixpkgs はまだ v1 のため公式 v2 を固定する。v2 は配布ホストとパスも異なる。
   nixpkgs.overlays = [
     (_final: prev: {
       raycast = prev.raycast.overrideAttrs (_old: rec {
-        version = "1.104.23";
+        version = "2.0.3.0";
         src = prev.fetchurl {
           name = "Raycast.dmg";
-          url = "https://releases.raycast.com/releases/${version}/download?build=arm";
-          hash = "sha256-/aotbycZmY8FSOLzUSmRMMfzwsN/2v08oNe4iteY2oE=";
+          url = "https://x-r2.raycast-releases.com/Raycast_2.0.3.0_bb00d73895_arm64.dmg";
+          hash = "sha256-d20Gu0hneEzOQ0TURZw9hx/LiZ7P7Hy2WQFjtBXP7uA=";
         };
       });
     })

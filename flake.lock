@@ -3,11 +3,11 @@
     "agent-pi": {
       "flake": false,
       "locked": {
-        "lastModified": 1786978268,
-        "narHash": "sha256-OKjYcRRdbqUR3lSYhQpJB1JuML77W7uAPDsgHmESVSM=",
+        "lastModified": 1787358295,
+        "narHash": "sha256-ZPnxuiy5ZhuRSjmplCiwtGGmSe1n0hdVMRRdrN9t/YI=",
         "owner": "myksyut",
         "repo": "agent-pi",
-        "rev": "79a8a87fbc2e1ad65df2dfadc496935826372d62",
+        "rev": "57da2211f4670fca9f274bad493a92da3ac35706",
         "type": "github"
       },
       "original": {

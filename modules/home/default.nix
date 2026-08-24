@@ -203,29 +203,30 @@ in
 
         [keys]
         # Space = macOS window, tab = in-space tab.
-        # Ghostty forwards Super as kitty CSI-u so the modifier reaches herdr.
-        new_workspace = "cmd+n"
-        close_workspace = "cmd+shift+w"
+        # Ghostty forwards Command as the Kitty keyboard protocol's Super modifier.
+        # Match that modifier name explicitly in herdr instead of relying on the cmd alias.
+        new_workspace = "super+n"
+        close_workspace = "super+shift+w"
 
         # Pane focus. Cmd+H is macOS Hide, so use Cmd+Opt+arrows (Ghostty's split navigation).
-        focus_pane_left = "cmd+alt+left"
-        focus_pane_down = "cmd+alt+down"
-        focus_pane_up = "cmd+alt+up"
-        focus_pane_right = "cmd+alt+right"
+        focus_pane_left = "super+alt+left"
+        focus_pane_down = "super+alt+down"
+        focus_pane_up = "super+alt+up"
+        focus_pane_right = "super+alt+right"
         # Splits. Same chords as Ghostty's native new_split.
-        split_vertical = "cmd+d"
-        split_horizontal = "cmd+shift+d"
-        close_pane = "cmd+x"
-        zoom = "cmd+shift+enter"
-        cycle_pane_previous = "cmd+["
-        cycle_pane_next = "cmd+]"
+        split_vertical = "super+d"
+        split_horizontal = "super+shift+d"
+        close_pane = "super+x"
+        zoom = "super+shift+enter"
+        cycle_pane_previous = "super+["
+        cycle_pane_next = "super+]"
 
         # Tabs. Same chords as a browser.
-        new_tab = "cmd+t"
-        close_tab = "cmd+w"
-        previous_tab = "cmd+shift+["
-        next_tab = "cmd+shift+]"
-        switch_tab = "cmd+1..9"
+        new_tab = "super+t"
+        close_tab = "super+w"
+        previous_tab = "super+shift+["
+        next_tab = "super+shift+]"
+        switch_tab = "super+1..9"
       '';
     };
 
@@ -709,15 +710,17 @@ in
           "super+shift+w=csi:119;10u"
           "super+shift+[=csi:91;10u"
           "super+shift+]=csi:93;10u"
-          "super+1=csi:49;9u"
-          "super+2=csi:50;9u"
-          "super+3=csi:51;9u"
-          "super+4=csi:52;9u"
-          "super+5=csi:53;9u"
-          "super+6=csi:54;9u"
-          "super+7=csi:55;9u"
-          "super+8=csi:56;9u"
-          "super+9=csi:57;9u"
+          # Ghostty normalizes number-row keys as digit_N. Using super+N leaves its
+          # built-in goto_tab binding active, so the sequence never reaches herdr.
+          "super+digit_1=csi:49;9u"
+          "super+digit_2=csi:50;9u"
+          "super+digit_3=csi:51;9u"
+          "super+digit_4=csi:52;9u"
+          "super+digit_5=csi:53;9u"
+          "super+digit_6=csi:54;9u"
+          "super+digit_7=csi:55;9u"
+          "super+digit_8=csi:56;9u"
+          "super+digit_9=csi:57;9u"
         ];
       };
     };

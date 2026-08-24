@@ -100,6 +100,26 @@ in
         "app.thinking.cycle" = "ctrl+shift+t";
       };
 
+      # Pi's provider catalog: override GPT-5.6 models to use 1.05M context window.
+      # Built-in default is 272K (short-context pricing tier).
+      ".pi/agent/models.json".text = builtins.toJSON {
+        providers = {
+          openai-codex = {
+            modelOverrides = {
+              "gpt-5.6-sol" = {
+                contextWindow = 1050000;
+              };
+              "gpt-5.6-luna" = {
+                contextWindow = 1050000;
+              };
+              "gpt-5.6-terra" = {
+                contextWindow = 1050000;
+              };
+            };
+          };
+        };
+      };
+
       # agent-pi model routing (roles + difficulty tiers). Distinct from
       # ~/.pi/agent/models.json which is Pi's provider catalog.
       ".pi/agents/models.json".text = builtins.toJSON {

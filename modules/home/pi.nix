@@ -95,6 +95,11 @@ in
         executionMode = "external";
       };
 
+      # Keep local environment files out of pi-lens diagnostics and project scans.
+      ".pi-lens/config.json".text = builtins.toJSON {
+        ignore = [ ".env" ];
+      };
+
       # Shift+Tabをagent-piのmode切替に譲るため、thinking切替は別キーに移す。
       ".pi/agent/keybindings.json".text = builtins.toJSON {
         "app.thinking.cycle" = "ctrl+shift+t";

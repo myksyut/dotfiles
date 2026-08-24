@@ -282,7 +282,6 @@
             pi-hunk = extensions.piHunk;
             plannotator-pi-extension = extensions.plannotator;
             pi-context-view = extensions.contextView;
-            pi-claude-auth = extensions.claudeAuth;
             pi-web-access = extensions.webAccess;
             pi-session-recall = extensions.sessionRecall;
             pi-fff = extensions.piFff;
@@ -304,7 +303,6 @@
             pi-hunk = extensions.piHunk;
             plannotator-pi-extension = extensions.plannotator;
             pi-context-view = extensions.contextView;
-            pi-claude-auth = extensions.claudeAuth;
             pi-web-access = extensions.webAccess;
             pi-session-recall = extensions.sessionRecall;
             pi-fff = extensions.piFff;

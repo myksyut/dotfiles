@@ -9,7 +9,6 @@ in
   piHunk = pkgs.callPackage ./pi-hunk.nix { };
   plannotator = pkgs.callPackage ./plannotator.nix { };
   contextView = pkgs.callPackage ./pi-context-view.nix { };
-  claudeAuth = pkgs.callPackage ./pi-claude-auth.nix { };
 
   webAccess = mkNpm {
     pname = "pi-web-access";

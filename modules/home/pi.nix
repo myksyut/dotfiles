@@ -31,7 +31,6 @@ let
       --arg piHunk '${extensions.piHunk}' \
       --arg plannotator '${extensions.plannotator}' \
       --arg contextView '${extensions.contextView}' \
-      --arg claudeAuth '${extensions.claudeAuth}' \
       --arg webAccess '${extensions.webAccess}' \
       --arg sessionRecall '${extensions.sessionRecall}' \
       --arg piFff '${extensions.piFff}' \
@@ -47,7 +46,7 @@ let
           else ""
           end;
         def managed:
-          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:(pi-hunk|@plannotator/pi-extension|pi-context-view|pi-claude-auth|@pankajudhas81/pi-claude-auth|pi-ask-user|pi-web-access|@ogulcancelik/pi-session-recall|@ff-labs/pi-fff|pi-lens|@juicesharp/rpiv-ask-user-question|pi-btw|pi-codex-image-gen|@sting8k/pi-vcc)(@.*)?$|/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-claude-auth|pi-web-access|pi-session-recall|pi-fff|pi-lens|rpiv-ask-user-question|pi-btw|pi-codex-image-gen|pi-vcc)-)"));
+          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:(pi-hunk|@plannotator/pi-extension|pi-context-view|pi-ask-user|pi-web-access|@ogulcancelik/pi-session-recall|@ff-labs/pi-fff|pi-lens|@juicesharp/rpiv-ask-user-question|pi-btw|pi-codex-image-gen|@sting8k/pi-vcc)(@.*)?$|/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-web-access|pi-session-recall|pi-fff|pi-lens|rpiv-ask-user-question|pi-btw|pi-codex-image-gen|pi-vcc)-)"));
         .packages = (
           ((.packages // []) | map(select(managed | not)))
           + [
@@ -55,7 +54,6 @@ let
             $piHunk,
             $plannotator,
             $contextView,
-            $claudeAuth,
             $webAccess,
             $sessionRecall,
             $piFff,

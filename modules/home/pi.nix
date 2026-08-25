@@ -72,6 +72,8 @@ let
 in
 {
   home = {
+    packages = [ extensions.piAcp ];
+
     file = {
       ".pi/agent/hunk.json".text = builtins.toJSON {
         review = "off";

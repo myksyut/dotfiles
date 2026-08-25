@@ -9,6 +9,7 @@ in
   piHunk = pkgs.callPackage ./pi-hunk.nix { };
   plannotator = pkgs.callPackage ./plannotator.nix { };
   contextView = pkgs.callPackage ./pi-context-view.nix { };
+  piAcp = pkgs.callPackage ./pi-acp.nix { };
 
   webAccess = mkNpm {
     pname = "pi-web-access";

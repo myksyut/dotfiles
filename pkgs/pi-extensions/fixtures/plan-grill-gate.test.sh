@@ -18,9 +18,14 @@ require() {
 require 'agent-pi-plan-grill-gate.patch' "$agent_pi"
 require '+++ b/extensions/plan-grill-gate.ts' "$patch"
 require 'name: "grill_with_docs"' "$patch"
+require 'plan_file_path' "$patch"
+require 'planHash' "$patch"
 require '__piPlanGrillComplete' "$patch"
 require 'plan_grill_required' "$patch"
+require 'plan_grill_plan_path_required' "$patch"
+require 'plan_grill_hash_mismatch' "$patch"
 require 'plan_grill_section_required' "$patch"
+require 'fallbackAllowed' "$patch"
 require '## Mandatory grill-with-docs gate' "$patch"
 require '## Grill checkpoint' "$patch"
 require '__piResetPlanGrill' "$patch"
@@ -34,10 +39,15 @@ text = Path(sys.argv[1]).read_text()
 mandatory = text.index("## Mandatory grill-with-docs gate")
 workflow = text.index("## Workflow", mandatory)
 bridge = text.index("plan_grill_required")
+added_lines = "\\n".join(line[1:] for line in text.splitlines() if line.startswith("+") and not line.startswith("+++"))
 if not mandatory < workflow:
     raise SystemExit("mandatory grill instructions must precede the PLAN workflow")
 if not mandatory < bridge:
     raise SystemExit("the PLAN prompt must be present before the bridge gate")
+if ".context/questions.md" in added_lines:
+    raise SystemExit("PLAN must not open a separate Plannotator clarification document")
+if 'do not open a separate Plannotator clarification review in PLAN mode' not in added_lines:
+    raise SystemExit("PLAN clarification flow must use chat or ask_user_question")
 PY
 
-printf '%s\n' 'plan-grill-gate fixture: PASS'
+printf '%s\n' 'plan-grill-gate static contract: PASS'

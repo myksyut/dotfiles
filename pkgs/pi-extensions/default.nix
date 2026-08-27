@@ -9,6 +9,43 @@ in
   piHunk = pkgs.callPackage ./pi-hunk.nix { };
   plannotator = pkgs.callPackage ./plannotator.nix { };
   contextView = pkgs.callPackage ./pi-context-view.nix { };
+  issuePrWriting = pkgs.callPackage ./issue-pr-writing.nix {
+    src = ./skills/issue-pr-writing;
+  };
+
+  piLinear = mkSimple {
+    pname = "pi-linear";
+    version = "0.5.0";
+    npmName = "@alasano/pi-linear";
+    hash = "sha256-ytdWNzRXBr4Y6iPfXLmT0Nk90QVrKiT6SXm9A9rwmyw=";
+    description = "Linear integration for Pi with 64+ tools, multi-workspace auth, and per-tool settings";
+    homepage = "https://github.com/alasano/house-of-pi/tree/main/packages/pi-linear";
+  };
+
+  skillCreator = mkSimple {
+    pname = "pi-skill-creator";
+    version = "0.3.4";
+    npmName = "@tmustier/pi-skill-creator";
+    hash = "sha256-hGseZJGyNc9JHA4NfjoUUsGqvrDH5FnpYLsPEXhgJe0=";
+    postPatchExtra = ''
+      substituteInPlace scripts/validate_skill.py \
+        --replace-fail '#!/usr/bin/env -S uv run --script' '#!${pkgs.uv}/bin/uv run --script'
+    '';
+    description = "Guidance for creating Pi-compatible Agent Skills";
+    homepage = "https://github.com/tmustier/pi-extensions/tree/main/extending-pi/skill-creator";
+  };
+
+  codexFast = mkSimple {
+    pname = "pi-codex-fast";
+    version = "0.1.6";
+    npmName = "@calesennett/pi-codex-fast";
+    hash = "sha256-7FbKbDr5kLRsbPRDbt0BWllK5LKhnWmKdUkJN7R9PyQ=";
+    postPatchExtra = ''
+      patch -p1 < ${./patches/pi-codex-fast-ui.patch}
+    '';
+    description = "Pi extension for OpenAI Codex Fast and Ultrafast service tiers";
+    homepage = "https://github.com/calesennett/pi-codex-fast";
+  };
 
   webAccess = mkNpm {
     pname = "pi-web-access";
@@ -46,6 +83,10 @@ in
     hash = "sha256-k76SQZrFSTqgZNC7x5aMi2sFjU2q0dqrjK3DxJYi/Tk=";
     npmDepsHash = "sha256-QqBvDnptmDomoXqvI2jPxF90e4ggSpcDYsdDUZ8azsg=";
     lockDir = ./locks/pi-lens;
+    postPatchExtra = ''
+      ${pkgs.jq}/bin/jq '.pi.skills = ["./skills"]' package.json > package.json.min
+      mv package.json.min package.json
+    '';
     description = "Real-time LSP, linter, formatter, and type-check feedback for Pi";
     homepage = "https://github.com/apmantza/pi-lens";
   };
@@ -65,6 +106,10 @@ in
     pname = "pi-btw";
     version = "0.4.1";
     hash = "sha256-CHzdNUd6Jo+ZMF0YvVoOw6piB+VQl4FHTKImwPwU/GI=";
+    postPatchExtra = ''
+      ${pkgs.jq}/bin/jq 'del(.pi.skills)' package.json > package.json.min
+      mv package.json.min package.json
+    '';
     description = "Parallel side conversations with /btw";
     homepage = "https://github.com/dbachelder/pi-btw";
   };
@@ -84,5 +129,38 @@ in
     hash = "sha256-ucYpUloe2trmI5oRs1hfaoilACkAgjZgR3Cyd2vSWHc=";
     description = "LLM-free structured conversation compaction for Pi";
     homepage = "https://github.com/sting8k/pi-vcc";
+  };
+
+  remoteControl = mkNpm {
+    pname = "pi-remote-control";
+    version = "1.0.5";
+    hash = "sha256-ORVFQPswcxGAN/Kzm4yCKsqEOyugDFNkipm7peBksoQ=";
+    npmDepsHash = "sha256-JifIqRr459bRRb4KXQXDrtw1MlkRzrNRXZ4rOhZcAoc=";
+    npmDepsFetcherVersion = 2;
+    additionalDependencies = {
+      "@earendil-works/pi-ai" = "^0.84.3";
+    };
+    postPatchExtra = ''
+      cat > src/session-name-generator.ts <<'EOF'
+      import type { ActiveSessionNameGenerator } from "./active-session-registry.js";
+
+      // Keep the daemon independent from Pi's changing model-registry API.
+      export function createLlmSessionNameGenerator(): ActiveSessionNameGenerator {
+        return async () => null;
+      }
+      EOF
+    '';
+    lockDir = ./locks/pi-remote-control;
+    description = "Authenticated remote control for Pi sessions";
+    homepage = "https://github.com/zerray/pi-remote-control";
+  };
+
+  piGoal = mkSimple {
+    pname = "pi-goal";
+    version = "0.53.3";
+    npmName = "@narumitw/pi-goal";
+    hash = "sha256-/IdkUvfcY236pvtzPwZapqTByIohGZI9IR1+DbzTslg=";
+    description = "Pi extension for autonomous single-objective goal completion";
+    homepage = "https://github.com/narumiruna/pi-extensions/tree/main/packages/pi-goal";
   };
 }

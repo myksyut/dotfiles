@@ -1,0 +1,158 @@
+--- a/extensions/lib/mode-prompts.ts
++++ b/extensions/lib/mode-prompts.ts
+@@ -145,6 +145,17 @@
+ /** Plan-first workflow: analyze → plan → approve → implement. */
+ export const PLAN_PROMPT = `You are in PLAN mode. Follow a plan-first workflow for every task.
+ 
++## Mandatory grill-with-docs gate
++Before writing a plan or calling \`plannotator_review\`, you MUST complete a grill-with-docs round.
++
++1. Read \`~/.pi/agent/skills/grill-with-docs/SKILL.md\` and the repository context/ADR documents that exist.
++2. Ask the frontier questions in chat or with \`ask_user_question\`; resolve terminology, assumptions, and decisions with the user.
++3. If there are no ambiguities, explicitly record that the assumptions were confirmed and there are no open questions.
++4. Call \`grill_with_docs\` with a non-empty summary, confirmed decisions, and an empty \`open_questions\` array.
++5. Add the returned \`## Grill checkpoint\` section to \`.context/todo.md\` before calling \`plannotator_review\`.
++
++The PLAN runtime gate rejects \`plannotator_review\` until this checkpoint exists. Do not dispatch a builder or modify implementation files before Plannotator (or the post-grill chat fallback) approves the plan. Re-run the grill checkpoint when a review changes a terminology, assumption, or decision; wording-only changes may reuse it.
++
+ ## Workflow
+ 
+ ### Phase 1: Analyze (Scout-Based Context Gathering)
+--- a/extensions/mode-cycler.ts
++++ b/extensions/mode-cycler.ts
+@@ -63,6 +63,15 @@
+ 	}
+ 
+ 	function setMode(mode: Mode, ctx: ExtensionContext) {
++		const previousMode = currentMode;
++		if (mode === "PLAN" && previousMode !== "PLAN") {
++			const resetPlanGrill = (globalThis as any).__piResetPlanGrill;
++			if (typeof resetPlanGrill === "function") resetPlanGrill();
++		}
++		if (mode !== "PLAN" && previousMode === "PLAN") {
++			const resetPlanGrill = (globalThis as any).__piResetPlanGrill;
++			if (typeof resetPlanGrill === "function") resetPlanGrill();
++		}
+ 		currentMode = mode;
+ 		(globalThis as any).__piCurrentMode = mode;
+ 
+--- a/extensions/plannotator-bridge.ts
++++ b/extensions/plannotator-bridge.ts
+@@ -59,6 +59,21 @@
+ 				};
+ 			}
+ 
++			if ((globalThis as any).__piCurrentMode === "PLAN") {
++				if ((globalThis as any).__piPlanGrillComplete !== true) {
++					return {
++						content: [{ type: "text", text: "Error: complete the grill-with-docs checkpoint with grill_with_docs before opening the PLAN review." }],
++						details: { approved: false, error: "plan_grill_required" },
++					};
++				}
++				if (!/^##\s+Grill checkpoint\b/im.test(content)) {
++					return {
++						content: [{ type: "text", text: `Error: ${filePath} must include the ## Grill checkpoint section before PLAN review.` }],
++						details: { approved: false, error: "plan_grill_section_required" },
++					};
++				}
++			}
++
+ 			const fallback =
+ 				"Fallback: ask the user to review the document directly in chat and reply with their decision.";
+ 
+--- /dev/null
++++ b/extensions/plan-grill-gate.ts
+@@ -0,0 +1,93 @@
++// ABOUTME: Enforces a session-local grill-with-docs checkpoint before PLAN review.
++// ABOUTME: The checkpoint is process state only; durable decisions remain in CONTEXT.md or ADRs.
++
++import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
++import { Type } from "@sinclair/typebox";
++import { existsSync } from "node:fs";
++import { homedir } from "node:os";
++import { join } from "node:path";
++
++interface GrillCheckpoint {
++	summary: string;
++	decisions: string[];
++	openQuestions: string[];
++	skillPath: string;
++}
++
++function skillPath(): string {
++	return join(homedir(), ".pi", "agent", "skills", "grill-with-docs", "SKILL.md");
++}
++
++function resetPlanGrill(): void {
++	const g = globalThis as any;
++	g.__piPlanGrillComplete = false;
++	g.__piPlanGrillCheckpoint = null;
++}
++
++export default function (pi: ExtensionAPI): void {
++	const g = globalThis as any;
++	g.__piResetPlanGrill = resetPlanGrill;
++	resetPlanGrill();
++
++	pi.registerTool({
++		name: "grill_with_docs",
++		label: "Grill With Docs",
++		description:
++			"Record the completed grill-with-docs checkpoint for PLAN mode. " +
++			"Run the skill's question rounds first; this tool does not replace the conversation.",
++		parameters: Type.Object({
++			summary: Type.String({ description: "Non-empty summary of the shared understanding." }),
++			decisions: Type.Optional(Type.Array(Type.String(), { description: "Confirmed terminology and decisions." })),
++			open_questions: Type.Optional(Type.Array(Type.String(), { description: "Questions that remain unresolved; must be empty to complete." })),
++		}),
++
++		async execute(_toolCallId, params) {
++			if (g.__piCurrentMode !== "PLAN") {
++				return {
++					content: [{ type: "text", text: "Error: grill_with_docs is only a PLAN-mode checkpoint." }],
++					details: { complete: false, error: "plan_mode_required" },
++				};
++			}
++
++			const { summary, decisions = [], open_questions: openQuestions = [] } = params as {
++				summary: string;
++				decisions?: string[];
++				open_questions?: string[];
++			};
++			const trimmedSummary = summary.trim();
++			const path = skillPath();
++			if (!existsSync(path)) {
++				return {
++					content: [{ type: "text", text: `Error: grill-with-docs skill not found at ${path}. Restore the skill before planning.` }],
++					details: { complete: false, error: "skill_missing", skillPath: path },
++				};
++			}
++			if (!trimmedSummary || openQuestions.length > 0) {
++				return {
++					content: [{ type: "text", text: "Error: grill checkpoint requires a non-empty summary and zero open questions." }],
++					details: { complete: false, error: "open_questions_remaining" },
++				};
++			}
++
++			const checkpoint: GrillCheckpoint = {
++				summary: trimmedSummary,
++				decisions,
++				openQuestions,
++				skillPath: path,
++			};
++			g.__piPlanGrillComplete = true;
++			g.__piPlanGrillCheckpoint = checkpoint;
++			const decisionLines = decisions.length > 0 ? decisions.map((decision) => `- ${decision}`).join("\n") : "- なし（前提を確認済み）";
++			return {
++				content: [{
++					type: "text",
++					text: `Grill checkpoint complete. Add this section to the plan before calling plannotator_review:\n\n## Grill checkpoint\n- Status: complete\n- Summary: ${trimmedSummary}\n- Decisions:\n${decisionLines}\n- Open questions: none`,
++				}],
++				details: { complete: true, checkpoint },
++			};
++		},
++	});
++
++	pi.on("session_start", async () => resetPlanGrill());
++	pi.on("session_switch", async () => resetPlanGrill());
++}

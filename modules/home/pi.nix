@@ -39,6 +39,12 @@ let
       --arg piBtw '${extensions.piBtw}' \
       --arg codexImageGen '${extensions.codexImageGen}' \
       --arg piVcc '${extensions.piVcc}' \
+      --arg piLinear '${extensions.piLinear}' \
+      --arg skillCreator '${extensions.skillCreator}' \
+      --arg issuePrWriting '${extensions.issuePrWriting}' \
+      --arg remoteControl '${extensions.remoteControl}' \
+      --arg piGoal '${extensions.piGoal}' \
+      --arg codexFast '${extensions.codexFast}' \
       '
         def source:
           if type == "string" then .
@@ -46,7 +52,7 @@ let
           else ""
           end;
         def managed:
-          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:(pi-hunk|@plannotator/pi-extension|pi-context-view|pi-ask-user|pi-web-access|@ogulcancelik/pi-session-recall|@ff-labs/pi-fff|pi-lens|@juicesharp/rpiv-ask-user-question|pi-btw|pi-codex-image-gen|@sting8k/pi-vcc)(@.*)?$|/nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-web-access|pi-session-recall|pi-fff|pi-lens|rpiv-ask-user-question|pi-btw|pi-codex-image-gen|pi-vcc)-)"));
+          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:(pi-hunk|@plannotator/pi-extension|pi-context-view|pi-ask-user|pi-web-access|@ogulcancelik/pi-session-recall|@ff-labs/pi-fff|pi-lens|@juicesharp/rpiv-ask-user-question|pi-btw|pi-codex-image-gen|@sting8k/pi-vcc|@alasano/pi-linear|@tmustier/pi-skill-creator|pi-remote-control|@narumitw/pi-goal|@calesennett/pi-codex-fast|pi-claude-auth|@pankajudhas81/pi-claude-auth)(@.*)?$|(.*/)?nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-web-access|pi-session-recall|pi-fff|pi-lens|rpiv-ask-user-question|pi-btw|pi-codex-image-gen|pi-vcc|pi-linear|pi-skill-creator|aipr-writing|issue-pr-writing|pi-remote-control|pi-goal|pi-codex-fast|pi-claude-auth)-)"));
         .packages = (
           ((.packages // []) | map(select(managed | not)))
           + [
@@ -61,7 +67,13 @@ let
             $rpivAskUser,
             $piBtw,
             $codexImageGen,
-            $piVcc
+            $piVcc,
+            $piLinear,
+            $skillCreator,
+            $issuePrWriting,
+            $remoteControl,
+            $piGoal,
+            { source: $codexFast, extensions: ["extensions/codex-fast.ts"] }
           ]
         )
       ' "$settings_path" > "$tmp"
@@ -129,8 +141,8 @@ in
       # ~/.pi/agent/models.json which is Pi's provider catalog.
       ".pi/agents/models.json".text = builtins.toJSON {
         default = {
-          provider = "xai";
-          model = "grok-4.6";
+          provider = "openai-codex";
+          model = "gpt-5.6-luna";
         };
         tiers = {
           easy = {
@@ -162,8 +174,8 @@ in
         };
         agents = {
           scout = {
-            provider = "x-ai";
-            model = "grok-4.1-fast";
+            provider = "openai-codex";
+            model = "gpt-5.6-luna";
           };
           ranger = {
             provider = "openai-codex";
@@ -215,6 +227,26 @@ in
 
     activation.configurePiPackages = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       run ${mergePiPackages} "$HOME/.pi/agent/settings.json"
+    '';
+
+    # The daemon rewrites config.json on startup, so keep it as a writable file
+    # rather than a Home Manager symlink into the Nix store.
+    activation.configureRemoteControl = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+            remote_control_dir="$HOME/.pi/remote-control"
+            remote_control_config="$remote_control_dir/config.json"
+            mkdir -p "$remote_control_dir"
+            if [ -L "$remote_control_config" ]; then
+              mv "$remote_control_config" "$remote_control_config.before-nix.backup"
+            fi
+            if [ ! -e "$remote_control_config" ]; then
+              cat > "$remote_control_config" <<'EOF'
+      {
+        "bindAddress": "100.82.209.42:17373",
+        "advertisedBaseUrl": "http://100.82.209.42:17373"
+      }
+      EOF
+              chmod 600 "$remote_control_config"
+            fi
     '';
   };
 }

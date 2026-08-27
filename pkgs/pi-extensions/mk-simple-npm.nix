@@ -12,6 +12,7 @@
   homepage,
   license ? lib.licenses.mit,
   npmName ? pname,
+  postPatchExtra ? "",
 }:
 
 let
@@ -27,6 +28,7 @@ stdenvNoCC.mkDerivation {
 
   sourceRoot = "package";
   dontBuild = true;
+  postPatch = postPatchExtra;
 
   installPhase = ''
     runHook preInstall

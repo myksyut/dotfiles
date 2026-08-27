@@ -13,6 +13,13 @@ buildNpmPackage {
   npmDepsHash = "sha256-m1H/KODz4+nUQc2vAdzwwjCABu6xGQV0gbjCGGSwTB4=";
   dontNpmBuild = true;
 
+  postPatch = ''
+    patch -p1 < ${./patches/agent-pi-tool-caller-security.patch}
+    patch -p1 < ${./patches/agent-pi-shortcuts.patch}
+    patch -p1 < ${./patches/agent-pi-runtime-paths.patch}
+    patch -p1 < ${./patches/agent-pi-plan-grill-gate.patch}
+  '';
+
   nativeBuildInputs = [ rsync ];
 
   installPhase = ''

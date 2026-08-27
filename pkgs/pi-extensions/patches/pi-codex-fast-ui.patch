@@ -1,0 +1,44 @@
+--- a/extensions/codex-fast.ts
++++ b/extensions/codex-fast.ts
+@@ -96,13 +96,8 @@
+ 
+ 	function updateStatus(ctx: ExtensionContext): void {
+ 		if (!ctx.hasUI) return;
+-		if (speedMode === "off") {
+-			ctx.ui.setStatus(STATUS_KEY, undefined);
+-			return;
+-		}
+-
+-		const label = speedMode === "fast" ? "Fast" : "Ultrafast";
+-		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("accent", label));
++		const label = speedMode === "off" ? "Off" : speedMode === "fast" ? "Fast" : "Ultrafast";
++		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("accent", `Codex: ${label}`));
+ 	}
+ 
+ 	function notifyState(ctx: ExtensionContext): void {
+@@ -133,6 +128,11 @@
+ 		setSpeedMode(speedMode === mode ? "off" : mode, ctx);
+ 	}
+ 
++	function cycleSpeedMode(ctx: ExtensionContext): void {
++		const nextMode = speedMode === "off" ? "fast" : speedMode === "fast" ? "ultrafast" : "off";
++		setSpeedMode(nextMode, ctx);
++	}
++
+ 	async function reloadSpeedModeState(ctx: ExtensionContext, options?: { includeStartupFlag?: boolean }): Promise<void> {
+ 		speedMode = "off";
+ 
+@@ -179,6 +179,13 @@
+ 		},
+ 	});
+ 
++	pi.registerShortcut("ctrl+shift+f", {
++		description: "Cycle Codex speed mode",
++		handler: async (ctx) => {
++			cycleSpeedMode(ctx);
++		},
++	});
++
+ 	pi.on("session_start", async (_event, ctx) => {
+ 		await reloadSpeedModeState(ctx, { includeStartupFlag: true });
+ 	});

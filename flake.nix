@@ -290,6 +290,12 @@
             pi-btw = extensions.piBtw;
             pi-codex-image-gen = extensions.codexImageGen;
             pi-vcc = extensions.piVcc;
+            pi-linear = extensions.piLinear;
+            pi-skill-creator = extensions.skillCreator;
+            issue-pr-writing = extensions.issuePrWriting;
+            pi-remote-control = extensions.remoteControl;
+            pi-goal = extensions.piGoal;
+            pi-codex-fast = extensions.codexFast;
           };
         ${wslSystem} =
           let
@@ -311,6 +317,12 @@
             pi-btw = extensions.piBtw;
             pi-codex-image-gen = extensions.codexImageGen;
             pi-vcc = extensions.piVcc;
+            pi-linear = extensions.piLinear;
+            pi-skill-creator = extensions.skillCreator;
+            issue-pr-writing = extensions.issuePrWriting;
+            pi-remote-control = extensions.remoteControl;
+            pi-goal = extensions.piGoal;
+            pi-codex-fast = extensions.codexFast;
           };
       };
 

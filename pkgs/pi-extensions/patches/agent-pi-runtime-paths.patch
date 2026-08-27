@@ -1,0 +1,482 @@
+--- a/skills/nano-banana/SKILL.md
++++ b/skills/nano-banana/SKILL.md
+@@ -1,7 +1,7 @@
+ ---
+ name: nano-banana
+ description: Generate or edit images with OpenRouter using the google/gemini-3.1-flash-image-preview model. Use when the user asks for image generation, wants a new visual from a text prompt, or wants modifications to an existing screenshot or image and expects an image file back.
+-allowed-tools: Bash(node agent/skills/nano-banana/generate-image.js:*)
++allowed-tools: Bash(node:*)
+ ---
+ 
+ # Nano Banana Image Generation
+@@ -23,14 +23,14 @@
+ 
+ - Make sure the prompt is explicit enough to produce the desired image.
+ - If editing an image, first save or locate the input image path in the workspace.
+-- The script writes generated files to `.context/generated-images/` by default.
++- The helper script is shipped next to this SKILL.md. Set `NANO_BANANA_SKILL_DIR` to the absolute directory containing this file before running the examples. The script writes generated files to `.context/generated-images/` by default.
+ 
+ ## Usage
+ 
+ ### Generate a new image
+ 
+ ```bash
+-node agent/skills/nano-banana/generate-image.js \
++node "$NANO_BANANA_SKILL_DIR/generate-image.js" \
+   --prompt "A clean product hero shot of a matte black coffee grinder on a soft beige background, studio lighting" \
+   --output .context/generated-images/coffee-grinder.png
+ ```
+@@ -38,7 +38,7 @@
+ ### Edit an existing image
+ 
+ ```bash
+-node agent/skills/nano-banana/generate-image.js \
++node "$NANO_BANANA_SKILL_DIR/generate-image.js" \
+   --prompt "Keep the layout the same, but change the CTA button to green, replace the headline with 'Ship faster', and make the page look more premium" \
+   --input-image path/to/screenshot.png \
+   --output .context/generated-images/edited-screenshot.png
+--- a/skills/expo-cicd-workflows/SKILL.md
++++ b/skills/expo-cicd-workflows/SKILL.md
+@@ -1,7 +1,7 @@
+ ---
+ name: expo-cicd-workflows
+ description: Helps understand and write EAS workflow YAML files for Expo projects. Use this skill when the user asks about CI/CD or workflows in an Expo or EAS context, mentions .eas/workflows/, or wants help with EAS build pipelines or deployment automation.
+-allowed-tools: "Read,Write,Bash(node:*)"
++allowed-tools: "Read,Write,Bash(node:*) Bash(npm:*)"
+ version: 1.0.0
+ license: MIT License
+ ---
+--- a/skills/expo-cicd-workflows/SKILL.md
++++ b/skills/expo-cicd-workflows/SKILL.md
+@@ -12,11 +12,11 @@
+ 
+ ## Reference Documentation
+ 
+-Fetch these resources before generating or validating workflow files. Use the fetch script (implemented using Node.js) in this skill's `scripts/` directory; it caches responses using ETags for efficiency:
++Fetch these resources before generating or validating workflow files. Set `SKILL_DIR` to the absolute directory containing this SKILL.md (derive it from Pi's skill location). The fetch script uses `PI_EAS_WORKFLOW_CACHE` or a user cache directory, so do not write into a package directory such as `/nix/store`.
+ 
+ ```bash
+ # Fetch resources
+-node {baseDir}/scripts/fetch.js <url>
++node "$SKILL_DIR/scripts/fetch.js" <url>
+ ```
+ 
+ 1. **JSON Schema** — https://api.expo.dev/v2/workflows/schema
+@@ -80,9 +80,9 @@
+ 
+ ```sh
+ # Install dependencies if missing
+-[ -d "{baseDir}/scripts/node_modules" ] || npm install --prefix {baseDir}/scripts
++[ -d "${XDG_CACHE_HOME:-$HOME/.cache}/pi-eas-workflows/node_modules" ] || npm install --prefix "${XDG_CACHE_HOME:-$HOME/.cache}/pi-eas-workflows" --no-save ajv ajv-formats js-yaml
+ 
+-node {baseDir}/scripts/validate.js <workflow.yml> [workflow2.yml ...]
++NODE_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/pi-eas-workflows/node_modules" node "$SKILL_DIR/scripts/validate.js" <workflow.yml> [workflow2.yml ...]
+ ```
+ 
+ The validator fetches the latest schema and checks the YAML structure. Fix any reported errors before considering the workflow complete.
+--- a/skills/expo-cicd-workflows/scripts/fetch.js
++++ b/skills/expo-cicd-workflows/scripts/fetch.js
+@@ -2,10 +2,11 @@
+ 
+ import { createHash } from 'node:crypto';
+ import { readFile, writeFile, mkdir } from 'node:fs/promises';
+-import { resolve } from 'node:path';
++import { join, resolve } from 'node:path';
++import { homedir } from 'node:os';
+ import process from 'node:process';
+ 
+-const CACHE_DIRECTORY = resolve(import.meta.dirname, '.cache');
++const CACHE_DIRECTORY = resolve(process.env.PI_EAS_WORKFLOW_CACHE ?? join(process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'pi-eas-workflows'));
+ const DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
+ 
+ export async function fetchCached(url) {
+--- a/skills/qa-automation/README.md
++++ b/skills/qa-automation/README.md
+@@ -1,5 +1,7 @@
+ # QA Automation Skills
+ 
++> Package note: the commands below use `QA_AUTOMATION_ROOT` as the absolute directory containing this `qa-automation` folder. Set it from Pi's skill location or copy the package into a project-local `$QA_AUTOMATION_ROOT`; do not assume the latter exists.
++
+ A comprehensive, reusable QA automation skill package for AI coding agents. Tests native mobile apps (iOS/Android) and web applications using a **dual-driver architecture**: **agent-device** for native simulator control + **CDP** for React Native runtime inspection, and **agent-browser** for web app testing.
+ 
+ ## Quick Start
+--- a/skills/qa-automation/qa-device-management/SKILL.md
++++ b/skills/qa-automation/qa-device-management/SKILL.md
+@@ -9,6 +9,8 @@
+ allowed-tools: Bash(agent-device:*) Bash(xcrun:*) Bash(adb:*) Bash(open:*) Bash(find:*) Bash(npx:*) Read
+ ---
+ 
++> Package note: examples using `QA_AUTOMATION_ROOT` require it to be set to the absolute directory containing this `qa-automation` folder. A Nix/package-installed skill is not located at the project's `.pi/skills` path.
++
+ # qa-device-management
+ 
+ Side-by-side iOS Simulator and Android Emulator control using the `agent-device` CLI. Manages the device lifecycle for all QA Automation skills.
+@@ -40,7 +42,7 @@
+ 
+ ```bash
+ # Auto-detect a booted simulator, or boot one
+-source .pi/skills/qa-automation/qa.config.sh
++source $QA_AUTOMATION_ROOT/qa.config.sh
+ UDID=$(qa_detect_simulator_udid)
+ 
+ # Or boot a specific one
+@@ -236,7 +238,7 @@
+ ### Navigate via CDP
+ 
+ ```bash
+-source .pi/skills/qa-automation/qa-test-flows/lib/cdp-helpers.sh
++source $QA_AUTOMATION_ROOT/qa-test-flows/lib/cdp-helpers.sh
+ 
+ # Navigate to a screen
+ cdp_navigate "SettingsScreen"
+--- a/skills/qa-automation/qa-scroll/SKILL.md
++++ b/skills/qa-automation/qa-scroll/SKILL.md
+@@ -10,6 +10,8 @@
+ allowed-tools: Bash(agent-device:*) Bash(agent-browser:*) Bash(xcrun:*) Bash(node:*) Bash(curl:*) Bash(npx:*) Read
+ ---
+ 
++> Package note: examples using `QA_AUTOMATION_ROOT` require it to be set to the absolute directory containing this `qa-automation` folder. A Nix/package-installed skill is not located at the project's `.pi/skills` path.
++
+ # qa-scroll
+ 
+ QA test skill for verifying scroll-based media feeds — **video autoplay**, **scroll navigation**, **mute/unmute toggle**, and **playback progression**. Uses the dual-driver architecture (CDP + agent-device) to test media feeds in native mobile apps.
+@@ -96,12 +98,12 @@
+ 
+ ### Run the example test
+ ```bash
+-bash .pi/skills/qa-automation/qa-scroll/run.sh
++bash $QA_AUTOMATION_ROOT/qa-scroll/run.sh
+ ```
+ 
+ ### Run a specific flow
+ ```bash
+-bash .pi/skills/qa-automation/qa-scroll/flows/example-scroll-test.sh
++bash $QA_AUTOMATION_ROOT/qa-scroll/flows/example-scroll-test.sh
+ ```
+ 
+ ### View results
+--- a/skills/qa-automation/qa-setup/SKILL.md
++++ b/skills/qa-automation/qa-setup/SKILL.md
+@@ -9,6 +9,8 @@
+ allowed-tools: Bash(agent-device:*) Bash(agent-browser:*) Bash(npm:*) Bash(npx:*) Bash(node:*) Bash(which:*) Bash(xcrun:*) Bash(brew:*) Read
+ ---
+ 
++> Package note: examples using `QA_AUTOMATION_ROOT` require it to be set to the absolute directory containing this `qa-automation` folder. A Nix/package-installed skill is not located at the project's `.pi/skills` path.
++
+ # qa-setup
+ 
+ Dependency verification and installation for the QA Automation skill package. Ensures both **agent-device** (native app testing) and **agent-browser** (web app testing) are installed and functional, along with all supporting tools.
+@@ -32,12 +34,12 @@
+ 
+ ### Full check + auto-install
+ ```bash
+-bash .pi/skills/qa-automation/install.sh
++bash $QA_AUTOMATION_ROOT/install.sh
+ ```
+ 
+ ### Check only (don't install anything)
+ ```bash
+-bash .pi/skills/qa-automation/install.sh --check
++bash $QA_AUTOMATION_ROOT/install.sh --check
+ ```
+ 
+ ### Manual install commands
+@@ -71,13 +73,13 @@
+ 
+ 2. **Verify**: Run the setup guard to check everything works:
+    ```bash
+-   source .pi/skills/qa-automation/qa-scroll/lib/setup-guard.sh
++   source $QA_AUTOMATION_ROOT/qa-scroll/lib/setup-guard.sh
+    run_setup_guard
+    ```
+ 
+ 3. **Test**: Run an example test flow:
+    ```bash
+-   bash .pi/skills/qa-automation/qa-scroll/run.sh
++   bash $QA_AUTOMATION_ROOT/qa-scroll/run.sh
+    ```
+ 
+ ## Architecture
+--- a/skills/qa-automation/qa-state-persistence/SKILL.md
++++ b/skills/qa-automation/qa-state-persistence/SKILL.md
+@@ -11,6 +11,8 @@
+ allowed-tools: Bash(agent-device:*) Bash(agent-browser:*) Bash(xcrun:*) Bash(node:*) Bash(curl:*) Bash(npx:*) Read
+ ---
+ 
++> Package note: examples using `QA_AUTOMATION_ROOT` require it to be set to the absolute directory containing this `qa-automation` folder. A Nix/package-installed skill is not located at the project's `.pi/skills` path.
++
+ # qa-state-persistence
+ 
+ QA test skill for verifying **UI state persistence** across navigation. Tests that state changes (likes, bookmarks, cart additions, form inputs) survive scrolling away and returning. Uses the dual-driver architecture (CDP + agent-device).
+@@ -83,7 +85,7 @@
+ 
+ ### Run the example test
+ ```bash
+-bash .pi/skills/qa-automation/qa-state-persistence/run.sh
++bash $QA_AUTOMATION_ROOT/qa-state-persistence/run.sh
+ ```
+ 
+ ### View results
+--- a/skills/qa-automation/qa-test-flows/SKILL.md
++++ b/skills/qa-automation/qa-test-flows/SKILL.md
+@@ -10,6 +10,8 @@
+ allowed-tools: Bash(agent-device:*) Bash(agent-browser:*) Bash(xcrun:*) Bash(adb:*) Bash(open:*) Bash(find:*) Bash(npx:*) Bash(node:*) Read
+ ---
+ 
++> Package note: examples using `QA_AUTOMATION_ROOT` require it to be set to the absolute directory containing this `qa-automation` folder. A Nix/package-installed skill is not located at the project's `.pi/skills` path.
++
+ # qa-test-flows
+ 
+ Automated UI test flow framework using a **dual-driver architecture**: **CDP** for navigation/state control and **agent-device** for screenshots/visual assertions in native apps, plus **agent-browser** for web app testing. This is a zero-framework approach — bash scripts orchestrate the entire test lifecycle with no Detox, Maestro, or Appium dependencies.
+@@ -80,26 +82,26 @@
+ 
+ ### Single Test
+ ```bash
+-bash .pi/skills/qa-automation/qa-test-flows/flows/smoke/example-smoke.sh
++bash $QA_AUTOMATION_ROOT/qa-test-flows/flows/smoke/example-smoke.sh
+ ```
+ 
+ ### All Tests
+ ```bash
+-bash .pi/skills/qa-automation/qa-test-flows/run-all.sh
++bash $QA_AUTOMATION_ROOT/qa-test-flows/run-all.sh
+ ```
+ 
+ ### With Logging
+ ```bash
+-bash .pi/skills/qa-automation/qa-test-flows/flows/smoke/example-smoke.sh 2>&1 | tee /tmp/smoke.log
++bash $QA_AUTOMATION_ROOT/qa-test-flows/flows/smoke/example-smoke.sh 2>&1 | tee /tmp/smoke.log
+ ```
+ 
+ ## Writing New Tests
+ 
+ ### 1. Copy the template
+ ```bash
+-cp .pi/skills/qa-automation/qa-test-flows/templates/new-flow.sh.template \
+-   .pi/skills/qa-automation/qa-test-flows/flows/my-suite/my-test.sh
+-chmod +x .pi/skills/qa-automation/qa-test-flows/flows/my-suite/my-test.sh
++cp $QA_AUTOMATION_ROOT/qa-test-flows/templates/new-flow.sh.template \
++   $QA_AUTOMATION_ROOT/qa-test-flows/flows/my-suite/my-test.sh
++chmod +x $QA_AUTOMATION_ROOT/qa-test-flows/flows/my-suite/my-test.sh
+ ```
+ 
+ ### 2. Edit the template
+@@ -113,7 +115,7 @@
+ 
+ ### 4. Run and verify
+ ```bash
+-bash .pi/skills/qa-automation/qa-test-flows/flows/my-suite/my-test.sh
++bash $QA_AUTOMATION_ROOT/qa-test-flows/flows/my-suite/my-test.sh
+ ls /tmp/qa-tests/screenshots/my-test/
+ ```
+ 
+--- a/skills/qa-automation/qa-web/SKILL.md
++++ b/skills/qa-automation/qa-web/SKILL.md
+@@ -10,6 +10,8 @@
+ allowed-tools: Bash(agent-browser:*) Bash(node:*) Bash(curl:*) Read
+ ---
+ 
++> Package note: examples using `QA_AUTOMATION_ROOT` require it to be set to the absolute directory containing this `qa-automation` folder. A Nix/package-installed skill is not located at the project's `.pi/skills` path.
++
+ # qa-web
+ 
+ Web application QA testing using **agent-browser**. The web counterpart to agent-device — together they provide full coverage for apps with both native and web versions.
+@@ -61,13 +63,13 @@
+ 
+ ### Run example web test
+ ```bash
+-bash .pi/skills/qa-automation/qa-web/run.sh
++bash $QA_AUTOMATION_ROOT/qa-web/run.sh
+ ```
+ 
+ ### Run with headed browser (see what's happening)
+ ```bash
+ export WEB_HEADED=true
+-bash .pi/skills/qa-automation/qa-web/flows/example-web-test.sh
++bash $QA_AUTOMATION_ROOT/qa-web/flows/example-web-test.sh
+ ```
+ 
+ ## Helper Library — web-helpers.sh
+@@ -75,7 +77,7 @@
+ Source this in your web test scripts for consistent patterns:
+ 
+ ```bash
+-source .pi/skills/qa-automation/qa-web/lib/web-helpers.sh
++source $QA_AUTOMATION_ROOT/qa-web/lib/web-helpers.sh
+ ```
+ 
+ ### Available Functions
+@@ -198,10 +200,10 @@
+ 
+ ```bash
+ # Test native app
+-bash .pi/skills/qa-automation/qa-scroll/run.sh
++bash $QA_AUTOMATION_ROOT/qa-scroll/run.sh
+ 
+ # Test web app
+-bash .pi/skills/qa-automation/qa-web/run.sh
++bash $QA_AUTOMATION_ROOT/qa-web/run.sh
+ 
+ # Both results in /tmp/qa-tests/
+ ```
+--- a/extensions/web-test.ts
++++ b/extensions/web-test.ts
+@@ -40,8 +40,9 @@
+ import { type AutocompleteItem } from "@mariozechner/pi-tui";
+ import { Text } from "@mariozechner/pi-tui";
+ import { execSync } from "child_process";
+-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
++import { cpSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+ import { join, dirname } from "path";
++import { homedir } from "os";
+ import { fileURLToPath } from "url";
+ 
+ // ── Constants ────────────────────────────────────
+@@ -70,30 +71,43 @@
+ 
+ // ── Config Loading ───────────────────────────────
+ 
+-function loadWorkerConfig(): WorkerConfig | null {
+-	const extDir = dirname(fileURLToPath(import.meta.url));
+-	const envPath = join(extDir, "web-test-worker", ".env");
++function piAgentDir(): string {
++	return process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
++}
+ 
+-	if (!existsSync(envPath)) {
+-		return null;
+-	}
++function sourceWorkerDir(): string {
++	return join(dirname(fileURLToPath(import.meta.url)), "web-test-worker");
++}
+ 
+-	const content = readFileSync(envPath, "utf-8");
+-	const vars: Record<string, string> = {};
+-	for (const line of content.split("\n")) {
+-		const trimmed = line.trim();
+-		if (!trimmed || trimmed.startsWith("#")) continue;
+-		const eq = trimmed.indexOf("=");
+-		if (eq > 0) {
+-			vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+-		}
+-	}
++function runtimeWorkerDir(): string {
++	return process.env.PI_WEB_TEST_WORKER_DIR || join(piAgentDir(), "web-test-worker");
++}
+ 
+-	if (!vars.WORKER_URL || !vars.API_KEY) {
+-		return null;
++function loadWorkerConfig(): WorkerConfig | null {
++	const envPaths = [
++		process.env.PI_WEB_TEST_CONFIG,
++		join(runtimeWorkerDir(), ".env"),
++		join(sourceWorkerDir(), ".env"),
++	].filter((value): value is string => typeof value === "string" && value.length > 0);
++
++	for (const envPath of envPaths) {
++		if (!existsSync(envPath)) continue;
++		const content = readFileSync(envPath, "utf-8");
++		const vars: Record<string, string> = {};
++		for (const line of content.split("\n")) {
++			const trimmed = line.trim();
++			if (!trimmed || trimmed.startsWith("#")) continue;
++			const eq = trimmed.indexOf("=");
++			if (eq > 0) {
++				vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
++			}
++		}
++		if (vars.WORKER_URL && vars.API_KEY) {
++			return { workerUrl: vars.WORKER_URL, apiKey: vars.API_KEY };
++		}
+ 	}
+ 
+-	return { workerUrl: vars.WORKER_URL, apiKey: vars.API_KEY };
++	return null;
+ }
+ 
+ // ── Capture Directory ────────────────────────────
+@@ -128,8 +142,21 @@
+ }
+ 
+ function deployWorker(): { success: boolean; url?: string; error?: string } {
+-	const extDir = dirname(fileURLToPath(import.meta.url));
+-	const workerDir = join(extDir, "web-test-worker");
++	const sourceDir = sourceWorkerDir();
++	const workerDir = runtimeWorkerDir();
++
++	if (workerDir === sourceDir) {
++		return { success: false, error: "Worker runtime directory is immutable. Set PI_WEB_TEST_WORKER_DIR to a writable path." };
++	}
++
++	if (!existsSync(join(workerDir, "package.json"))) {
++		try {
++			mkdirSync(workerDir, { recursive: true });
++			cpSync(sourceDir, workerDir, { recursive: true });
++		} catch (e: any) {
++			return { success: false, error: `Could not prepare writable worker directory: ${e.message}` };
++		}
++	}
+ 
+ 	if (!existsSync(join(workerDir, "node_modules"))) {
+ 		try {
+--- a/extensions/WEB_TEST_QUICKSTART.md
++++ b/extensions/WEB_TEST_QUICKSTART.md
+@@ -16,9 +16,10 @@
+ ```
+ 
+ ### 2. Deploy Worker
+-The extension auto-deploys on first use, or manually:
++Configure the worker in a writable runtime directory first. The extension can redeploy it when the configured worker is unhealthy:
+ ```bash
+-cd ~/.pi/agent/extensions/web-test-worker
++mkdir -p ~/.pi/agent/web-test-worker
++cd ~/.pi/agent/web-test-worker
+ npm install
+ npm run deploy
+ ```
+@@ -57,9 +58,9 @@
+ ## File Locations
+ 
+ - Extension: `~/.pi/agent/extensions/web-test.ts`
+-- Worker: `~/.pi/agent/extensions/web-test-worker/`
++- Worker runtime: `~/.pi/agent/web-test-worker/` (copied from the package; writable)
+ - Captures: `~/.pi/web-test-captures/` (auto-created)
+-- Config: `~/.pi/agent/settings.json`
++- Config: `PI_WEB_TEST_CONFIG` or `~/.pi/agent/web-test-worker/.env` with `WORKER_URL` and `API_KEY`
+ 
+ ## Troubleshooting
+ 
+--- a/extensions/plannotator-bridge.ts
++++ b/extensions/plannotator-bridge.ts
+@@ -31,7 +31,7 @@
+ 			),
+ 		}),
+ 
+-		async execute(_toolCallId, params) {
++		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+ 			const filePath = (params as { file_path?: string })?.file_path?.trim();
+ 			if (!filePath) {
+ 				return {
+@@ -48,7 +48,7 @@
+ 				};
+ 			}
+ 
+-			const absolute = isAbsolute(filePath) ? filePath : resolve(process.cwd(), filePath);
++			const absolute = isAbsolute(filePath) ? filePath : resolve(ctx?.cwd || process.cwd(), filePath);
+ 			let content: string;
+ 			try {
+ 				content = readFileSync(absolute, "utf-8");
+--- a/extensions/web-test.ts
++++ b/extensions/web-test.ts
+@@ -28,9 +28,9 @@
+  *   web_remote                            -- programmatic access (agent can call)
+  *
+  * Prerequisites:
+- *   - Cloudflare Worker deployed (auto-deployed on first use)
++ *   - Cloudflare Worker configured; deployment uses a writable runtime directory
+  *   - wrangler CLI authenticated
+- *   - API key in agent/extensions/web-test-worker/.env
++ *   - API key in PI_WEB_TEST_CONFIG or ~/.pi/agent/web-test-worker/.env
+  *
+  * Usage: pi -e extensions/web-test.ts
+  */

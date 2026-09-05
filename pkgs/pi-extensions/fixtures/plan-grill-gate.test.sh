@@ -4,8 +4,6 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "$0")/../../.." && pwd)
 patch="$repo_root/pkgs/pi-extensions/patches/agent-pi-plan-grill-gate.patch"
 agent_pi="$repo_root/pkgs/pi-extensions/agent-pi.nix"
-skill="$HOME/.pi/agent/skills/grill-with-docs/SKILL.md"
-
 require() {
   local needle=$1
   local file=$2
@@ -29,7 +27,9 @@ require 'fallbackAllowed' "$patch"
 require '## Mandatory grill-with-docs gate' "$patch"
 require '## Grill checkpoint' "$patch"
 require '__piResetPlanGrill' "$patch"
-require '## PLANモードの必須チェックポイント' "$skill"
+require 'plannotator_submit_plan' "$patch"
+require 'plan_grill_symlink_escape' "$patch"
+require '__piPlanGrillGeneration' "$patch"
 
 python3 - "$patch" <<'PY'
 from pathlib import Path

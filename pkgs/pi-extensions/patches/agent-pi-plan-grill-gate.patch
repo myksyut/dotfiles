@@ -1,33 +1,11 @@
 --- a/extensions/lib/mode-prompts.ts
 +++ b/extensions/lib/mode-prompts.ts
-@@ -145,6 +145,17 @@
- /** Plan-first workflow: analyze → plan → approve → implement. */
- export const PLAN_PROMPT = `You are in PLAN mode. Follow a plan-first workflow for every task.
- 
-+## Mandatory grill-with-docs gate
-+Before finalizing a plan or calling \`plannotator_review\`, you MUST complete a grill-with-docs round.
-+
-+1. Read \`~/.pi/agent/skills/grill-with-docs/SKILL.md\` and the repository context/ADR documents that exist.
-+2. Ask the frontier questions in chat or with \`ask_user_question\`; resolve terminology, assumptions, and decisions with the user.
-+3. Write the draft plan to \`.context/todo.md\` with a \`## Grill checkpoint\` section containing the summary, decisions, and zero open questions.
-+4. Call \`grill_with_docs\` with \`plan_file_path: ".context/todo.md"\`, the same summary and decisions, and an explicit empty \`open_questions\` array. This binds the checkpoint to the current plan bytes.
-+5. Call \`plannotator_review\` exactly once for the plan. If it is rejected, revise the SAME file and review it again; rerun grill only when terminology, assumptions, or decisions change.
-+
-+The PLAN runtime gate rejects any other review path or a plan whose checkpoint is missing, stale, or not bound to the current file. Do not dispatch a builder or modify implementation files before Plannotator (or the post-grill chat fallback) approves the plan.
-+
- ## Workflow
- 
- ### Phase 1: Analyze (Scout-Based Context Gathering)
-@@ -279,13 +290,9 @@
+@@ -347,9 +347,9 @@
  - **Critical Files summary** — a single table at the end showing all touched files
  
  ### Phase 2b: Follow-up Questions (when needed)
--- If clarification is needed before planning, write questions to a markdown file
--- Use numbered list format: \`1. What framework should we use? _Default: React_\`
--- Include sensible defaults in \`_Default: value_\` format where possible
--- Call \`plannotator_review\` to collect answers in the Plannotator UI:
--  \`plannotator_review { file_path: ".context/questions.md", title: "Clarifying Questions" }\`
--- The user can answer each question inline and submit
+-- If clarification is needed before planning, use \`ask_user\` to collect answers
+-- Ask focused questions with sensible defaults
 -- Use the returned answers to refine your plan
 +- Ask clarification questions in chat or with \`ask_user_question\`; do not open a separate Plannotator clarification review in PLAN mode.
 +- Use numbered questions with sensible defaults where useful.
@@ -35,121 +13,283 @@
  
  ### Phase 3: Present & Approve
  - Write the plan to .context/todo.md first
+@@ -402,7 +402,19 @@
+ 	const phase1 = astraMain ? PLAN_PHASE1_ASTRA : PLAN_PHASE1_CLASSIC;
+ 	const rules = astraMain ? PLAN_RULES_ASTRA : PLAN_RULES_CLASSIC;
+ 	return `You are in PLAN mode. Follow a plan-first workflow for every task.
++
++## Mandatory grill-with-docs gate
++Before finalizing a plan or calling \`show_plan\`, you MUST complete a grill-with-docs round.
++
++1. Read \`~/.pi/agent/skills/grill-with-docs/SKILL.md\` and the repository context/ADR documents that exist.
++2. Ask the frontier questions in chat or with \`ask_user_question\`; resolve terminology, assumptions, and decisions with the user.
++3. Write the draft plan to \`.context/todo.md\` with a \`## Grill checkpoint\` section containing the summary, decisions, and zero open questions.
++4. Call \`grill_with_docs\` with \`plan_file_path: ".context/todo.md"\`, the same summary and decisions, and an explicit empty \`open_questions\` array. This binds the checkpoint to the current plan bytes.
++5. Call \`show_plan\` exactly once for the plan. If it is rejected, revise the SAME file and review it again; rerun grill only when terminology, assumptions, or decisions change.
+ 
++The PLAN runtime gate rejects any other review path or a plan whose checkpoint is missing, stale, or not bound to the current file. Do not dispatch a builder or modify implementation files before show_plan approval.
++Do not call \`plannotator_submit_plan\` or \`plannotator_review\` in PLAN mode.
++
+ ## Workflow
+ 
+ ${phase1}
 --- a/extensions/mode-cycler.ts
 +++ b/extensions/mode-cycler.ts
-@@ -63,6 +63,15 @@
+@@ -64,6 +64,11 @@
  	}
  
  	function setMode(mode: Mode, ctx: ExtensionContext) {
 +		const previousMode = currentMode;
-+		if (mode === "PLAN" && previousMode !== "PLAN") {
-+			const resetPlanGrill = (globalThis as any).__piResetPlanGrill;
-+			if (typeof resetPlanGrill === "function") resetPlanGrill();
-+		}
-+		if (mode !== "PLAN" && previousMode === "PLAN") {
++		if ((mode === "PLAN" && previousMode !== "PLAN") || (mode !== "PLAN" && previousMode === "PLAN")) {
 +			const resetPlanGrill = (globalThis as any).__piResetPlanGrill;
 +			if (typeof resetPlanGrill === "function") resetPlanGrill();
 +		}
  		currentMode = mode;
  		(globalThis as any).__piCurrentMode = mode;
  
---- a/extensions/plannotator-bridge.ts
-+++ b/extensions/plannotator-bridge.ts
-@@ -2,6 +2,7 @@
- // ABOUTME: Replaces the retired agent-pi viewer extensions (plan/file/board/spec/reports/research/etc).
+--- a/extensions/lib/plannotator-client.ts
++++ b/extensions/lib/plannotator-client.ts
+@@ -60,6 +60,8 @@
+ export interface PlanReviewOptions {
+ 	planContent: string;
+ 	planFilePath?: string;
++	cwd?: string;
++	planBytes?: Buffer;
+ 	origin?: string;
+ 	signal?: AbortSignal;
+ 	requestTimeoutMs?: number;
+@@ -315,6 +317,29 @@
+ 	events: EventBusLike,
+ 	options: PlanReviewOptions,
+ ): Promise<PlanReviewOutcome> {
++	const state = globalThis as any;
++	let reviewToken: string | null = null;
++	if (state.__piCurrentMode === "PLAN") {
++		const assertReady = state.__piAssertPlanGrillReady as undefined | ((opts: { cwd?: string; filePath?: string; content?: string; bytes?: Buffer }) => { ok: boolean; error?: string; message?: string });
++		const ready = typeof assertReady === "function"
++			? assertReady({
++				cwd: options.cwd,
++				filePath: options.planFilePath,
++				content: options.planContent,
++				bytes: options.planBytes,
++			})
++			: { ok: false, error: "plan_grill_required", message: "Error: complete and bind the grill-with-docs checkpoint with grill_with_docs before opening the PLAN review." };
++		if (!ready.ok) {
++			throw new PlannotatorBridgeError("remote-error", ready.message ?? "PLAN grill checkpoint is required.", { fallbackAllowed: false });
++		}
++		const begin = state.__piBeginPlanReview as undefined | (() => { ok: boolean; token?: string | null; message?: string });
++		const started = typeof begin === "function" ? begin() : { ok: true, token: null };
++		if (!started.ok) {
++			throw new PlannotatorBridgeError("remote-error", started.message ?? "PLAN review already in progress.", { fallbackAllowed: false });
++		}
++		reviewToken = started.token ?? null;
++	}
++
+ 	const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+ 	const reviewTimeoutMs = options.reviewTimeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS;
+ 	const results = new Map<string, ReviewResult>();
+@@ -326,6 +351,7 @@
+ 		waiters.get(result.reviewId)?.(result);
+ 	});
  
- import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-+import { createHash } from "node:crypto";
++	let settled = false;
+ 	try {
+ 		const result = await requestHandled(events, "plan-review", {
+ 			planContent: options.planContent,
+@@ -348,7 +374,7 @@
+ 				reviewTimeoutMs,
+ 				options.signal,
+ 			);
+-			return toOutcome(review);
++			return finishReview(state, reviewToken, toOutcome(review), () => { settled = true; });
+ 		} catch (error) {
+ 			if (!(error instanceof PlannotatorBridgeError) || error.code !== "review-timeout") throw error;
+ 			const recovered = await recoverReviewStatus(events, reviewId, requestTimeoutMs, options.signal)
+@@ -356,14 +382,39 @@
+ 					if (statusError instanceof PlannotatorBridgeError && statusError.code === "aborted") throw statusError;
+ 					return undefined;
+ 				});
+-			if (recovered) return toOutcome(recovered);
++			if (recovered) {
++				return finishReview(state, reviewToken, toOutcome(recovered), () => { settled = true; });
++			}
+ 			throw error;
+ 		}
+ 	} finally {
+ 		stopListening();
++		if (!settled && reviewToken) {
++			const end = state.__piEndPlanReview as undefined | ((token: string | null, approvedFlag: boolean) => { accepted: boolean; stale: boolean });
++			if (typeof end === "function") end(reviewToken, false);
++		}
+ 	}
+ }
+ 
++function finishReview(
++	state: any,
++	reviewToken: string | null,
++	outcome: PlanReviewOutcome,
++	markSettled: () => void,
++): PlanReviewOutcome {
++	if (!reviewToken) {
++		markSettled();
++		return outcome;
++	}
++	const end = state.__piEndPlanReview as undefined | ((token: string | null, approvedFlag: boolean) => { accepted: boolean; stale: boolean });
++	const lease = typeof end === "function" ? end(reviewToken, outcome.approved === true) : { accepted: true, stale: false };
++	markSettled();
++	if (!lease.accepted) {
++		throw new PlannotatorBridgeError("aborted", "PLAN review result is stale after session/mode reset.", { fallbackAllowed: false });
++	}
++	return outcome;
++}
++
+ export async function annotateWithPlannotator(
+ 	events: EventBusLike,
+ 	options: AnnotateOptions,
+--- a/extensions/plan-viewer.ts
++++ b/extensions/plan-viewer.ts
+@@ -5,7 +5,7 @@
+ import { Text } from "@mariozechner/pi-tui";
  import { Type } from "@sinclair/typebox";
  import { readFileSync } from "node:fs";
- import { resolve, isAbsolute, extname } from "node:path";
-@@ -59,8 +60,40 @@
+-import { join } from "node:path";
++import { isAbsolute, join, resolve } from "node:path";
+ import { outputLine } from "./lib/output-box.ts";
+ import { applyExtensionDefaults } from "./lib/themeMap.ts";
+ import {
+@@ -22,14 +22,43 @@
+ export default function (pi: ExtensionAPI) {
+ 	let piRef = pi;
+ 
++	function resolvePlanFile(filePath: string, cwd?: string): string {
++		const trimmed = filePath.trim();
++		return isAbsolute(trimmed) ? resolve(trimmed) : resolve(cwd || process.cwd(), trimmed);
++	}
++
++	function grillBlock(filePath: string, markdown: string, cwd?: string, bytes?: Buffer) {
++		const state = globalThis as any;
++		if (state.__piCurrentMode !== "PLAN") return undefined;
++		const assertReady = state.__piAssertPlanGrillReady as undefined | ((opts: { cwd?: string; filePath?: string; content?: string; bytes?: Buffer }) => { ok: boolean; error?: string; message?: string });
++		const ready = typeof assertReady === "function"
++			? assertReady({ cwd, filePath, content: markdown, bytes })
++			: { ok: false, error: "plan_grill_required", message: "Error: complete and bind the grill-with-docs checkpoint with grill_with_docs before opening the PLAN review." };
++		if (ready.ok) return undefined;
++		return {
++			content: [{ type: "text" as const, text: ready.message ?? "PLAN grill checkpoint is required." }],
++			details: {
++				action: "declined" as const,
++				purpose: "plan",
++				approved: false,
++				error: ready.error ?? "plan_grill_required",
++				filePath,
++			},
++		};
++	}
++
+ 	async function reviewPlan(
+ 		markdown: string,
+ 		filePath: string,
+ 		signal?: AbortSignal,
++		cwd?: string,
++		bytes?: Buffer,
+ 	) {
+ 		return reviewPlanWithPlannotator(pi.events, {
+ 			planContent: markdown,
+ 			planFilePath: filePath,
++			cwd,
++			planBytes: bytes,
+ 			origin: "agent-pi",
+ 			signal,
+ 		});
+@@ -66,7 +95,7 @@
+ 			"Questions mode is not supported — use the ask_user tool to collect answers.",
+ 		parameters: ShowPlanParams,
+ 
+-		async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
++		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+ 			const { file_path, mode: modeStr } = params as {
+ 				file_path: string;
+ 				title?: string;
+@@ -86,17 +115,23 @@
  				};
  			}
  
--			const fallback =
--				"Fallback: ask the user to review the document directly in chat and reply with their decision.";
-+			const g = globalThis as any;
-+			if (g.__piCurrentMode === "PLAN") {
-+				const cwd = ctx?.cwd || process.cwd();
-+				const expectedPlan = resolve(cwd, ".context/todo.md");
-+				const checkpoint = g.__piPlanGrillCheckpoint as { planFilePath?: string; planHash?: string } | null;
-+				if (g.__piPlanGrillComplete !== true || !checkpoint) {
-+					return {
-+						content: [{ type: "text", text: "Error: complete and bind the grill-with-docs checkpoint with grill_with_docs before opening the PLAN review." }],
-+						details: { approved: false, error: "plan_grill_required" },
-+					};
-+				}
-+				if (absolute !== expectedPlan || checkpoint.planFilePath !== absolute) {
-+					return {
-+						content: [{ type: "text", text: "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs." }],
-+						details: { approved: false, error: "plan_grill_plan_path_required" },
-+					};
-+				}
-+				if (!/^##\s+Grill checkpoint\b/im.test(content)) {
-+					return {
-+						content: [{ type: "text", text: `Error: ${filePath} must include the ## Grill checkpoint section before PLAN review.` }],
-+						details: { approved: false, error: "plan_grill_section_required" },
-+					};
-+				}
-+				const planHash = createHash("sha256").update(content, "utf8").digest("hex");
-+				if (checkpoint.planHash !== planHash) {
-+					return {
-+						content: [{ type: "text", text: "Error: the plan changed after the grill checkpoint. Re-run grill_with_docs for the current file." }],
-+						details: { approved: false, error: "plan_grill_hash_mismatch" },
-+					};
-+				}
+-			let markdown: string;
++			const cwd = ctx?.cwd || process.cwd();
++			const absolute = resolvePlanFile(file_path, cwd);
++			let bytes: Buffer;
+ 			try {
+-				markdown = readFileSync(file_path, "utf-8");
++				bytes = readFileSync(absolute);
+ 			} catch (err: any) {
+ 				return {
+ 					content: [{ type: "text" as const, text: `Error reading file: ${err.message}` }],
+ 				};
+ 			}
++			const markdown = bytes.toString("utf8");
+ 
++			const blocked = grillBlock(absolute, markdown, cwd, bytes);
++			if (blocked) return blocked;
++
+ 			try {
+-				const result = await reviewPlan(markdown, file_path, signal);
++				const result = await reviewPlan(markdown, absolute, signal, cwd, bytes);
+ 				const feedbackNote = result.feedback ? `\n\nReview guidance:\n${result.feedback}` : "";
+ 
+ 				if (result.approved) {
+@@ -187,18 +222,25 @@
+ 				return;
+ 			}
+ 
+-			const filePath = args.trim() || join(ctx.cwd, ".context", "todo.md");
++			const filePath = args.trim() ? resolvePlanFile(args.trim(), ctx.cwd) : join(ctx.cwd, ".context", "todo.md");
+ 
+-			let markdown: string;
++			let bytes: Buffer;
+ 			try {
+-				markdown = readFileSync(filePath, "utf-8");
++				bytes = readFileSync(filePath);
+ 			} catch {
+ 				ctx.ui.notify(`Cannot read: ${filePath}`, "error");
+ 				return;
+ 			}
++			const markdown = bytes.toString("utf8");
+ 
++			const blocked = grillBlock(filePath, markdown, ctx.cwd, bytes);
++			if (blocked) {
++				ctx.ui.notify(blocked.content[0].text, "error");
++				return;
 +			}
 +
-+			const fallbackAllowed = (error: unknown) =>
-+				error instanceof PlannotatorBridgeError && error.fallbackAllowed;
- 
  			try {
- 				const outcome = await reviewPlanWithPlannotator(pi.events, {
-@@ -69,6 +102,10 @@
- 				});
- 
- 				if (outcome.approved) {
-+					if (g.__piCurrentMode === "PLAN") {
-+						g.__piPlanGrillComplete = false;
-+						g.__piPlanGrillCheckpoint = null;
-+					}
- 					const notes = outcome.feedback ? `\n\nApproval notes:\n${outcome.feedback}` : "";
- 					return {
- 						content: [{ type: "text", text: `APPROVED — the user accepted "${filePath}". Proceed.${notes}` }],
-@@ -89,12 +126,16 @@
- 				const message = error instanceof PlannotatorBridgeError
- 					? error.message
- 					: String(error);
-+				const canFallback = fallbackAllowed(error);
-+				const fallback = canFallback
-+					? " Fallback: ask the user to review the document directly in chat and reply with their decision."
-+					: "";
- 				return {
- 					content: [{
- 						type: "text",
--						text: `Error: Plannotator did not complete the review (${message}). ${fallback}`,
-+						text: `Error: Plannotator did not complete the review (${message}).${fallback}`,
- 					}],
--					details: { approved: false },
-+					details: { approved: false, fallbackAllowed: canFallback },
- 				};
- 			}
- 		},
+-				const result = await reviewPlan(markdown, filePath);
++				const result = await reviewPlan(markdown, filePath, undefined, ctx.cwd, bytes);
+ 				if (result.approved) {
+ 					const feedbackNote = result.feedback ? `\n\nReview guidance:\n${result.feedback}` : "";
+ 					notifyApproved("", feedbackNote);
 --- /dev/null
 +++ b/extensions/plan-grill-gate.ts
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,651 @@
 +// ABOUTME: Enforces a session-local grill-with-docs checkpoint before PLAN review.
 +// ABOUTME: The checkpoint is process state only; durable decisions remain in CONTEXT.md or ADRs.
 +
 +import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 +import { Type } from "@sinclair/typebox";
-+import { createHash } from "node:crypto";
-+import { readFileSync } from "node:fs";
++import { createHash, randomUUID } from "node:crypto";
++import {
++	closeSync,
++	constants as fsConstants,
++	fstatSync,
++	lstatSync,
++	openSync,
++	readFileSync,
++	readSync,
++	realpathSync,
++} from "node:fs";
 +import { homedir } from "node:os";
-+import { join, resolve } from "node:path";
++import { dirname, isAbsolute, join, resolve } from "node:path";
 +
-+interface GrillCheckpoint {
++export interface GrillCheckpoint {
 +	planFilePath: string;
 +	planHash: string;
 +	summary: string;
@@ -158,11 +298,77 @@
 +	skillPath: string;
 +}
 +
-+function skillPath(): string {
++export interface PlanGrillFailure {
++	ok: false;
++	error: string;
++	message: string;
++}
++
++export interface PlanGrillReady {
++	ok: true;
++	absolute: string;
++	planHash: string;
++	bytes: Buffer;
++}
++
++export interface PlanReviewBegin {
++	ok: true;
++	token: string | null;
++	generation: number;
++}
++
++export interface PlanReviewLease {
++	accepted: boolean;
++	stale: boolean;
++}
++
++interface InFlightReview {
++	token: string;
++	generation: number;
++}
++
++const BLOCKED_PLAN_EXTERNAL_TOOLS = new Set(["plannotator_submit_plan", "plannotator_review"]);
++const GATED_INTERNAL_PLAN_TOOLS = new Set(["show_plan"]);
++const HEADING = /^##\s+Grill checkpoint\b/;
++const OPEN_NONE = /^(なし。?|none|)$/i;
++
++function decodeUtf8Strict(latin1: string): string | undefined {
++	try {
++		return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.from(latin1, "latin1"));
++	} catch {
++		return undefined;
++	}
++}
++
++function isOpenNone(latin1: string): boolean {
++	const text = decodeUtf8Strict(trimLatin1(latin1));
++	return text !== undefined && OPEN_NONE.test(text.trim());
++}
++
++export const planGrillIo = {
++	openSync,
++	fstatSync,
++	readSync,
++	closeSync,
++	lstatSync,
++	realpathSync,
++};
++
++function g(): any {
++	return globalThis as any;
++}
++
++function stateInit(): void {
++	const state = g();
++	if (typeof state.__piPlanGrillGeneration !== "number") state.__piPlanGrillGeneration = 0;
++	if (state.__piPlanReviewInFlight === undefined) state.__piPlanReviewInFlight = null;
++}
++
++export function skillPath(): string {
 +	return join(homedir(), ".pi", "agent", "skills", "grill-with-docs", "SKILL.md");
 +}
 +
-+function readSkill(path: string): boolean {
++export function readSkill(path: string): boolean {
 +	try {
 +		return /^name:\s*grill-with-docs\b/m.test(readFileSync(path, "utf-8"));
 +	} catch {
@@ -170,15 +376,432 @@
 +	}
 +}
 +
-+function resetPlanGrill(): void {
-+	const g = globalThis as any;
-+	g.__piPlanGrillComplete = false;
-+	g.__piPlanGrillCheckpoint = null;
++export function hashPlanBytes(bytes: Buffer | string): string {
++	const buf = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : bytes;
++	return createHash("sha256").update(buf).digest("hex");
++}
++
++export function realCwd(cwd: string): string | undefined {
++	try {
++		const real = planGrillIo.realpathSync(cwd);
++		const st = planGrillIo.lstatSync(real);
++		if (!st.isDirectory()) return undefined;
++		return real;
++	} catch {
++		return undefined;
++	}
++}
++
++export function canonicalPlanPath(cwd: string): string | undefined {
++	const root = realCwd(cwd);
++	if (!root) return undefined;
++	return join(root, ".context", "todo.md");
++}
++
++export function expectedPlanPath(cwd: string): string {
++	return canonicalPlanPath(cwd) ?? join(resolve(cwd), ".context", "todo.md");
++}
++
++function utf8Equal(a: string, b: string): boolean {
++	return Buffer.from(a, "utf8").equals(Buffer.from(b, "utf8"));
++}
++
++function fieldFromLatin1(latin1: string): string | undefined {
++	const trimmed = trimLatin1(latin1).replace(/^[-*]\s+/, "");
++	return decodeUtf8Strict(trimmed);
++}
++
++function trimLatin1(value: string): string {
++	return value.replace(/^[ \t]+|[ \t]+$/g, "");
++}
++
++function fenceOpen(line: string): { char: string; len: number } | undefined {
++	const match = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
++	if (!match) return undefined;
++	const marker = match[2];
++	const char = marker[0];
++	if (char === "`" && match[3].includes("`")) return undefined;
++	return { char, len: marker.length };
++}
++
++function fenceClose(line: string, open: { char: string; len: number }): boolean {
++	const match = /^( {0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
++	if (!match) return false;
++	const marker = match[2];
++	return marker[0] === open.char && marker.length >= open.len;
++}
++
++function splitLatin1Lines(bytes: Buffer): Array<{ text: string; start: number; end: number }> {
++	const text = bytes.toString("latin1");
++	const out: Array<{ text: string; start: number; end: number }> = [];
++	let start = 0;
++	while (start <= text.length) {
++		const nl = text.indexOf("\n", start);
++		const end = nl === -1 ? text.length : nl;
++		let line = text.slice(start, end);
++		if (line.endsWith("\r")) line = line.slice(0, -1);
++		out.push({ text: line, start, end });
++		if (nl === -1) break;
++		start = nl + 1;
++	}
++	return out;
++}
++
++export function extractGrillSection(bytes: Buffer): Buffer | undefined {
++	const rows = splitLatin1Lines(bytes);
++	let fence: { char: string; len: number } | undefined;
++	let start: number | undefined;
++	let end = bytes.length;
++	for (const row of rows) {
++		if (fence) {
++			if (fenceClose(row.text, fence)) fence = undefined;
++			continue;
++		}
++		const opened = fenceOpen(row.text);
++		if (opened) {
++			fence = opened;
++			continue;
++		}
++		if (start === undefined && HEADING.test(row.text)) {
++			start = row.start;
++			continue;
++		}
++		if (start !== undefined && /^##\s+/.test(row.text) && !HEADING.test(row.text)) {
++			end = row.start;
++			break;
++		}
++	}
++	if (start === undefined) return undefined;
++	return bytes.subarray(start, end);
++}
++
++export function hasUnfencedGrillHeading(bytes: Buffer): boolean {
++	return extractGrillSection(bytes) !== undefined;
++}
++
++export function parseGrillCheckpointFields(bytes: Buffer): { summary: string; decisions: string[]; openQuestions: string[] } | undefined {
++	const section = extractGrillSection(bytes);
++	if (!section) return undefined;
++	const lines = splitLatin1Lines(section).map((row) => row.text);
++	let summary = "";
++	const decisions: string[] = [];
++	const openQuestions: string[] = [];
++	let mode: "none" | "summary" | "decisions" | "open" = "none";
++	let decisionsInline = false;
++	for (const line of lines) {
++		if (HEADING.test(line)) continue;
++		const summaryLine = /^Summary:\s*(.*)$/.exec(line);
++		if (summaryLine) {
++			mode = "summary";
++			const decodedSummary = fieldFromLatin1(summaryLine[1]);
++			if (decodedSummary === undefined) return undefined;
++			summary = decodedSummary;
++			continue;
++		}
++		const decisionsLine = /^Decisions:\s*(.*)$/.exec(line);
++		if (decisionsLine) {
++			mode = "decisions";
++			const rest = trimLatin1(decisionsLine[1]);
++			decisionsInline = rest.length > 0;
++			if (rest) {
++				const decoded = fieldFromLatin1(rest);
++				if (decoded === undefined) return undefined;
++				decisions.push(decoded);
++			}
++			continue;
++		}
++		const openLine = /^Open questions:\s*(.*)$/.exec(line);
++		if (openLine) {
++			mode = "open";
++			const rest = trimLatin1(openLine[1]);
++			if (rest && !isOpenNone(rest)) {
++				const decoded = fieldFromLatin1(rest);
++				if (decoded === undefined) return undefined;
++				openQuestions.push(decoded);
++			}
++			continue;
++		}
++		if (!trimLatin1(line)) continue;
++		if (mode === "summary" && !decisionsInline) {
++			if (/^(Decisions|Open questions):/.test(line)) continue;
++			const decoded = fieldFromLatin1(line);
++			if (decoded === undefined) return undefined;
++			summary = summary ? `${summary}\n${decoded}` : decoded;
++		} else if (mode === "decisions" && !decisionsInline) {
++			if (!/^[-*]\s+/.test(trimLatin1(line))) continue;
++			const decoded = fieldFromLatin1(line);
++			if (decoded === undefined) return undefined;
++			decisions.push(decoded);
++		} else if (mode === "open") {
++			if (isOpenNone(line)) continue;
++			const decoded = fieldFromLatin1(line);
++			if (decoded === undefined) return undefined;
++			if (decoded) openQuestions.push(decoded);
++		}
++	}
++	if (!summary) return undefined;
++	return { summary, decisions, openQuestions };
++}
++
++function fieldsMismatch(bytes: Buffer, checkpoint: GrillCheckpoint): string | undefined {
++	const parsed = parseGrillCheckpointFields(bytes);
++	if (!parsed) return "plan_grill_section_required";
++	if (!utf8Equal(parsed.summary, checkpoint.summary)) return "plan_grill_inline_mismatch";
++	if (parsed.decisions.length !== checkpoint.decisions.length) return "plan_grill_inline_mismatch";
++	for (let i = 0; i < parsed.decisions.length; i++) {
++		if (!utf8Equal(parsed.decisions[i], checkpoint.decisions[i])) return "plan_grill_inline_mismatch";
++	}
++	if (parsed.openQuestions.length > 0) return "open_questions_remaining";
++	return undefined;
++}
++
++function fail(error: string, message: string): PlanGrillFailure {
++	return { ok: false, error, message };
++}
++
++function parentSymlinkOrMoved(filePath: string, expectedParentReal?: string): PlanGrillFailure | { ok: true; parentReal: string } {
++	const parent = dirname(filePath);
++	let st;
++	try {
++		st = planGrillIo.lstatSync(parent);
++	} catch {
++		return fail("plan_grill_symlink_escape", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md; symlinks are rejected.");
++	}
++	if (st.isSymbolicLink()) {
++		return fail("plan_grill_symlink_escape", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md; symlinks are rejected.");
++	}
++	let parentReal: string;
++	try {
++		parentReal = planGrillIo.realpathSync(parent);
++	} catch {
++		return fail("plan_grill_symlink_escape", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md; symlinks are rejected.");
++	}
++	if (expectedParentReal && parentReal !== expectedParentReal) {
++		return fail("plan_grill_toctou", "Error: the plan path changed during read. Re-run grill_with_docs for the current file.");
++	}
++	return { ok: true, parentReal };
++}
++
++export function readCanonicalPlanBytes(cwd: string, filePath: string): PlanGrillFailure | { ok: true; absolute: string; bytes: Buffer } {
++	const expected = canonicalPlanPath(cwd);
++	if (!expected) {
++		return fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++	}
++	const trimmed = filePath.trim();
++	if (!trimmed) {
++		return fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++	}
++	const root = realCwd(cwd);
++	if (!root) {
++		return fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++	}
++	const requested = isAbsolute(trimmed) ? resolve(trimmed) : resolve(root, trimmed);
++	if (requested !== expected) {
++		let realRequested: string | undefined;
++		try { realRequested = planGrillIo.realpathSync(requested); } catch { realRequested = undefined; }
++		if (realRequested !== expected) {
++			return fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++		}
++	}
++
++	const beforeParent = parentSymlinkOrMoved(expected);
++	if (!beforeParent.ok) return beforeParent;
++
++	let before;
++	try {
++		before = planGrillIo.lstatSync(requested);
++	} catch {
++		return fail("plan_missing", "Error: write .context/todo.md with a ## Grill checkpoint section before PLAN review.");
++	}
++	if (before.isSymbolicLink()) {
++		return fail("plan_grill_symlink_escape", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md; symlinks are rejected.");
++	}
++	if (!before.isFile()) {
++		return fail("plan_grill_nonregular", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md.");
++	}
++
++	const flags = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
++	let fd = -1;
++	try {
++		fd = planGrillIo.openSync(requested, flags);
++		const st = planGrillIo.fstatSync(fd);
++		if (!st.isFile()) {
++			return fail("plan_grill_nonregular", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md.");
++		}
++		if (st.dev !== before.dev || st.ino !== before.ino) {
++			return fail("plan_grill_toctou", "Error: the plan path changed during read. Re-run grill_with_docs for the current file.");
++		}
++		const buf = Buffer.alloc(st.size);
++		let offset = 0;
++		while (offset < st.size) {
++			const n = planGrillIo.readSync(fd, buf, offset, st.size - offset, offset);
++			if (n <= 0) break;
++			offset += n;
++		}
++		const after = planGrillIo.lstatSync(requested);
++		if (after.isSymbolicLink() || !after.isFile() || after.dev !== st.dev || after.ino !== st.ino) {
++			return fail("plan_grill_toctou", "Error: the plan path changed during read. Re-run grill_with_docs for the current file.");
++		}
++		const afterParent = parentSymlinkOrMoved(expected, beforeParent.parentReal);
++		if (!afterParent.ok) return afterParent;
++		let realFile: string;
++		try {
++			realFile = planGrillIo.realpathSync(requested);
++		} catch {
++			return fail("plan_grill_symlink_escape", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md; symlinks are rejected.");
++		}
++		if (realFile !== expected) {
++			return fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++		}
++		return { ok: true, absolute: expected, bytes: buf.subarray(0, offset) };
++	} catch (error: any) {
++		if (error && (error.code === "ELOOP" || error.code === "EMLINK")) {
++			return fail("plan_grill_symlink_escape", "Error: PLAN file must be a regular file at <cwd>/.context/todo.md; symlinks are rejected.");
++		}
++		return fail("plan_missing", "Error: write .context/todo.md with a ## Grill checkpoint section before PLAN review.");
++	} finally {
++		if (fd >= 0) {
++			try { planGrillIo.closeSync(fd); } catch { /* keep closed */ }
++		}
++	}
++}
++
++export function resetPlanGrill(): void {
++	stateInit();
++	const state = g();
++	state.__piPlanGrillGeneration = (state.__piPlanGrillGeneration as number) + 1;
++	state.__piPlanGrillComplete = false;
++	state.__piPlanGrillCheckpoint = null;
++	state.__piPlanReviewInFlight = null;
++}
++
++export function beginPlanReview(): PlanGrillFailure | PlanReviewBegin {
++	stateInit();
++	const state = g();
++	const generation = state.__piPlanGrillGeneration as number;
++	if (state.__piCurrentMode !== "PLAN") {
++		return { ok: true, token: null, generation };
++	}
++	const inflight = state.__piPlanReviewInFlight as InFlightReview | null;
++	if (inflight) {
++		return fail("plan_review_in_flight", "Error: a PLAN review is already in progress. Do not start the same review twice.");
++	}
++	const token = randomUUID();
++	state.__piPlanReviewInFlight = { token, generation };
++	return { ok: true, token, generation };
++}
++
++export function endPlanReview(token: string | null | undefined, approved: boolean): PlanReviewLease {
++	stateInit();
++	const state = g();
++	if (!token) return { accepted: true, stale: false };
++	const generation = state.__piPlanGrillGeneration as number;
++	const inflight = state.__piPlanReviewInFlight as InFlightReview | null;
++	if (!inflight || inflight.token !== token || inflight.generation !== generation) {
++		return { accepted: false, stale: true };
++	}
++	state.__piPlanReviewInFlight = null;
++	if (approved === true) {
++		state.__piPlanGrillComplete = false;
++		state.__piPlanGrillCheckpoint = null;
++	}
++	return { accepted: true, stale: false };
++}
++
++export function assertPlanGrillReady(opts: {
++	cwd?: string;
++	filePath?: string;
++	content?: string;
++	bytes?: Buffer;
++}): PlanGrillFailure | PlanGrillReady {
++	stateInit();
++	const state = g();
++	if (state.__piCurrentMode !== "PLAN") {
++		const cwd = opts.cwd || process.cwd();
++		const bytes = opts.bytes ?? (opts.content !== undefined ? Buffer.from(opts.content, "utf8") : Buffer.alloc(0));
++		return {
++			ok: true,
++			absolute: opts.filePath ? resolve(cwd, opts.filePath) : join(cwd, ".context", "todo.md"),
++			planHash: hashPlanBytes(bytes),
++			bytes,
++		};
++	}
++
++	const cwd = opts.cwd || process.cwd();
++	const filePath = opts.filePath?.trim() || "";
++	const loaded = filePath
++		? readCanonicalPlanBytes(cwd, filePath)
++		: fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++	if (!loaded.ok) return loaded;
++
++	const diskBytes = loaded.bytes;
++	if (opts.bytes && !opts.bytes.equals(diskBytes)) {
++		return fail("plan_grill_hash_mismatch", "Error: the plan changed after the grill checkpoint. Re-run grill_with_docs for the current file.");
++	}
++	if (opts.content !== undefined && !Buffer.from(opts.content, "utf8").equals(diskBytes)) {
++		return fail("plan_grill_hash_mismatch", "Error: the plan changed after the grill checkpoint. Re-run grill_with_docs for the current file.");
++	}
++
++	const checkpoint = state.__piPlanGrillCheckpoint as GrillCheckpoint | null;
++	if (state.__piPlanGrillComplete !== true || !checkpoint) {
++		return fail("plan_grill_required", "Error: complete and bind the grill-with-docs checkpoint with grill_with_docs before opening the PLAN review.");
++	}
++	if (checkpoint.planFilePath !== loaded.absolute) {
++		return fail("plan_grill_plan_path_required", "Error: PLAN review must target the current .context/todo.md bound by grill_with_docs.");
++	}
++	if (!readSkill(checkpoint.skillPath || skillPath())) {
++		return fail("skill_missing", `Error: grill-with-docs skill not found or invalid at ${checkpoint.skillPath || skillPath()}. Restore the skill before planning.`);
++	}
++	if (!hasUnfencedGrillHeading(diskBytes)) {
++		return fail("plan_grill_section_required", `Error: ${filePath} must include the ## Grill checkpoint section before PLAN review.`);
++	}
++	const planHash = hashPlanBytes(diskBytes);
++	if (checkpoint.planHash !== planHash) {
++		return fail("plan_grill_hash_mismatch", "Error: the plan changed after the grill checkpoint. Re-run grill_with_docs for the current file.");
++	}
++	const mismatch = fieldsMismatch(diskBytes, checkpoint);
++	if (mismatch) {
++		return fail(mismatch, "Error: grill checkpoint summary/decisions must match the current plan file.");
++	}
++	if (!Array.isArray(checkpoint.openQuestions) || checkpoint.openQuestions.length > 0) {
++		return fail("open_questions_remaining", "Error: grill checkpoint requires a non-empty summary and zero open questions.");
++	}
++	return { ok: true, absolute: loaded.absolute, planHash, bytes: diskBytes };
++}
++
++function toolFilePath(params: unknown): string | undefined {
++	if (!params || typeof params !== "object") return undefined;
++	const record = params as Record<string, unknown>;
++	const value = record.file_path ?? record.filePath ?? record.plan_file_path;
++	return typeof value === "string" ? value : undefined;
++}
++
++function claimedApproved(details: unknown, isError: unknown): boolean {
++	if (isError === true) return false;
++	if (!details || typeof details !== "object") return false;
++	const record = details as Record<string, unknown>;
++	return record.approved === true || record.action === "approved";
++}
++
++function unverifiedPatch(event: any) {
++	return {
++		content: event?.content,
++		details: {
++			...((event?.details && typeof event.details === "object") ? event.details : {}),
++			approved: false,
++			action: "declined",
++			error: "plan_grill_unverified_result",
++		},
++		isError: event?.isError === true,
++	};
 +}
 +
 +export default function (pi: ExtensionAPI): void {
-+	const g = globalThis as any;
-+	g.__piResetPlanGrill = resetPlanGrill;
++	const state = g();
++	state.__piResetPlanGrill = resetPlanGrill;
++	state.__piAssertPlanGrillReady = assertPlanGrillReady;
++	state.__piBeginPlanReview = beginPlanReview;
++	state.__piEndPlanReview = endPlanReview;
 +	resetPlanGrill();
 +
 +	pi.registerTool({
@@ -195,7 +818,7 @@
 +		}),
 +
 +		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-+			if (g.__piCurrentMode !== "PLAN") {
++			if (state.__piCurrentMode !== "PLAN") {
 +				return {
 +					content: [{ type: "text", text: "Error: grill_with_docs is only a PLAN-mode checkpoint." }],
 +					details: { complete: false, error: "plan_mode_required" },
@@ -209,12 +832,11 @@
 +				open_questions: string[];
 +			};
 +			const cwd = ctx?.cwd || process.cwd();
-+			const absolutePlanPath = resolve(cwd, planFilePath.trim());
-+			const expectedPlanPath = resolve(cwd, ".context/todo.md");
-+			if (absolutePlanPath !== expectedPlanPath) {
++			const loaded = readCanonicalPlanBytes(cwd, planFilePath);
++			if (!loaded.ok) {
 +				return {
-+					content: [{ type: "text", text: "Error: grill_with_docs must bind the current .context/todo.md plan." }],
-+					details: { complete: false, error: "plan_grill_plan_path_required" },
++					content: [{ type: "text", text: loaded.message }],
++					details: { complete: false, error: loaded.error },
 +				};
 +			}
 +
@@ -232,44 +854,70 @@
 +					details: { complete: false, error: "open_questions_remaining" },
 +				};
 +			}
-+
-+			let content: string;
-+			try {
-+				content = readFileSync(absolutePlanPath, "utf-8");
-+			} catch {
-+				return {
-+					content: [{ type: "text", text: "Error: write .context/todo.md with a ## Grill checkpoint section before calling grill_with_docs." }],
-+					details: { complete: false, error: "plan_missing" },
-+				};
-+			}
-+			if (!/^##\s+Grill checkpoint\b/im.test(content)) {
++			if (!hasUnfencedGrillHeading(loaded.bytes)) {
 +				return {
 +					content: [{ type: "text", text: "Error: .context/todo.md must include the ## Grill checkpoint section." }],
 +					details: { complete: false, error: "plan_grill_section_required" },
 +				};
 +			}
 +
-+			const planHash = createHash("sha256").update(content, "utf8").digest("hex");
 +			const checkpoint: GrillCheckpoint = {
-+				planFilePath: absolutePlanPath,
-+				planHash,
++				planFilePath: loaded.absolute,
++				planHash: hashPlanBytes(loaded.bytes),
 +				summary: trimmedSummary,
 +				decisions,
 +				openQuestions,
 +				skillPath: skill,
 +			};
-+			g.__piPlanGrillComplete = true;
-+			g.__piPlanGrillCheckpoint = checkpoint;
++			const mismatch = fieldsMismatch(loaded.bytes, checkpoint);
++			if (mismatch) {
++				return {
++					content: [{ type: "text", text: "Error: grill checkpoint summary/decisions must match the current plan file." }],
++					details: { complete: false, error: mismatch },
++				};
++			}
++
++			state.__piPlanGrillComplete = true;
++			state.__piPlanGrillCheckpoint = checkpoint;
 +			return {
 +				content: [{
 +					type: "text",
-+					text: `Grill checkpoint complete and bound to ${planFilePath}. Call plannotator_review for this same file; do not edit it before review.`,
++					text: `Grill checkpoint complete and bound to ${planFilePath}. Call show_plan for this same file to get approval; do not edit it before review.`,
 +				}],
 +				details: { complete: true, checkpoint },
 +			};
 +		},
 +	});
 +
++	pi.on("tool_call", async (event, ctx) => {
++		const toolName = event?.toolName || event?.name;
++		if (state.__piCurrentMode !== "PLAN") return;
++		if (BLOCKED_PLAN_EXTERNAL_TOOLS.has(toolName)) {
++			return {
++				block: true,
++				reason: "Error: in PLAN mode use show_plan for approval. Direct plannotator_submit_plan / plannotator_review calls are blocked.",
++			};
++		}
++		if (!GATED_INTERNAL_PLAN_TOOLS.has(toolName)) return;
++		const cwd = ctx?.cwd || process.cwd();
++		const params = event.input || event.arguments || event.params || {};
++		const ready = assertPlanGrillReady({ cwd, filePath: toolFilePath(params) });
++		if (!ready.ok) return { block: true, reason: ready.message };
++		const inflight = state.__piPlanReviewInFlight as InFlightReview | null;
++		if (inflight) {
++			return { block: true, reason: "Error: a PLAN review is already in progress. Do not start the same review twice." };
++		}
++	});
++
++	pi.on("tool_result", async (event) => {
++		const toolName = event?.toolName || event?.name;
++		if (state.__piCurrentMode !== "PLAN") return;
++		if (!GATED_INTERNAL_PLAN_TOOLS.has(toolName) && !BLOCKED_PLAN_EXTERNAL_TOOLS.has(toolName)) return;
++		if (!claimedApproved(event?.details, event?.isError)) return;
++		if (state.__piPlanGrillComplete === true) return unverifiedPatch(event);
++	});
++
 +	pi.on("session_start", async () => resetPlanGrill());
 +	pi.on("session_switch", async () => resetPlanGrill());
++	pi.on("session_shutdown", async () => resetPlanGrill());
 +}

@@ -446,26 +446,6 @@
  
  ## Troubleshooting
  
---- a/extensions/plannotator-bridge.ts
-+++ b/extensions/plannotator-bridge.ts
-@@ -31,7 +31,7 @@
- 			),
- 		}),
- 
--		async execute(_toolCallId, params) {
-+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
- 			const filePath = (params as { file_path?: string })?.file_path?.trim();
- 			if (!filePath) {
- 				return {
-@@ -48,7 +48,7 @@
- 				};
- 			}
- 
--			const absolute = isAbsolute(filePath) ? filePath : resolve(process.cwd(), filePath);
-+			const absolute = isAbsolute(filePath) ? filePath : resolve(ctx?.cwd || process.cwd(), filePath);
- 			let content: string;
- 			try {
- 				content = readFileSync(absolute, "utf-8");
 --- a/extensions/web-test.ts
 +++ b/extensions/web-test.ts
 @@ -28,9 +28,9 @@

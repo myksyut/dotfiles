@@ -12,74 +12,29 @@ let
   };
 
   mergePiPackages = pkgs.writeShellScript "merge-pi-packages" ''
-    set -euo pipefail
-
-    settings_path="''${1:?settings path is required}"
-    settings_dir="$(${pkgs.coreutils}/bin/dirname "$settings_path")"
-    ${pkgs.coreutils}/bin/mkdir -p "$settings_dir"
-
-    if [ ! -e "$settings_path" ]; then
-      ${pkgs.coreutils}/bin/printf '%s\n' '{}' > "$settings_path"
-      ${pkgs.coreutils}/bin/chmod 600 "$settings_path"
-    fi
-
-    mode="$(${pkgs.coreutils}/bin/stat -c '%a' "$settings_path")"
-    tmp="$(${pkgs.coreutils}/bin/mktemp "$settings_dir/.settings.json.XXXXXX")"
-
-    ${lib.getExe pkgs.jq} \
-      --arg agentPi '${extensions.agentPi}' \
-      --arg piHunk '${extensions.piHunk}' \
-      --arg plannotator '${extensions.plannotator}' \
-      --arg contextView '${extensions.contextView}' \
-      --arg webAccess '${extensions.webAccess}' \
-      --arg sessionRecall '${extensions.sessionRecall}' \
-      --arg piFff '${extensions.piFff}' \
-      --arg piLens '${extensions.piLens}' \
-      --arg rpivAskUser '${extensions.rpivAskUser}' \
-      --arg piBtw '${extensions.piBtw}' \
-      --arg codexImageGen '${extensions.codexImageGen}' \
-      --arg piVcc '${extensions.piVcc}' \
-      --arg piLinear '${extensions.piLinear}' \
-      --arg skillCreator '${extensions.skillCreator}' \
-      --arg issuePrWriting '${extensions.issuePrWriting}' \
-      --arg remoteControl '${extensions.remoteControl}' \
-      --arg piGoal '${extensions.piGoal}' \
-      --arg codexFast '${extensions.codexFast}' \
-      '
-        def source:
-          if type == "string" then .
-          elif type == "object" then (.source // "")
-          else ""
-          end;
-        def managed:
-          (source | test("^(git:github.com/(ruizrica|myksyut)/agent-pi|npm:(pi-hunk|@plannotator/pi-extension|pi-context-view|pi-ask-user|pi-web-access|@ogulcancelik/pi-session-recall|@ff-labs/pi-fff|pi-lens|@juicesharp/rpiv-ask-user-question|pi-btw|pi-codex-image-gen|@sting8k/pi-vcc|@alasano/pi-linear|@tmustier/pi-skill-creator|pi-remote-control|@narumitw/pi-goal|@calesennett/pi-codex-fast|pi-claude-auth|@pankajudhas81/pi-claude-auth)(@.*)?$|(.*/)?nix/store/[a-z0-9]+-(agent-pi|pi-hunk|plannotator-pi-extension|pi-context-view|pi-web-access|pi-session-recall|pi-fff|pi-lens|rpiv-ask-user-question|pi-btw|pi-codex-image-gen|pi-vcc|pi-linear|pi-skill-creator|aipr-writing|issue-pr-writing|pi-remote-control|pi-goal|pi-codex-fast|pi-claude-auth)-)"));
-        .packages = (
-          ((.packages // []) | map(select(managed | not)))
-          + [
-            { source: $agentPi, extensions: ["!extensions/user-question.ts"] },
-            $piHunk,
-            $plannotator,
-            $contextView,
-            $webAccess,
-            $sessionRecall,
-            $piFff,
-            $piLens,
-            $rpivAskUser,
-            $piBtw,
-            $codexImageGen,
-            $piVcc,
-            $piLinear,
-            $skillCreator,
-            $issuePrWriting,
-            $remoteControl,
-            $piGoal,
-            { source: $codexFast, extensions: ["extensions/codex-fast.ts"] }
-          ]
-        )
-      ' "$settings_path" > "$tmp"
-
-    ${pkgs.coreutils}/bin/chmod "$mode" "$tmp"
-    ${pkgs.coreutils}/bin/mv "$tmp" "$settings_path"
+    export PATH=${pkgs.coreutils}/bin:${pkgs.jq}/bin:$PATH
+    export AGENT_PI='${extensions.agentPi}'
+    export PI_HUNK='${extensions.piHunk}'
+    export PLANNOTATOR='${extensions.plannotator}'
+    export CONTEXT_VIEW='${extensions.contextView}'
+    export WEB_ACCESS='${extensions.webAccess}'
+    export SESSION_RECALL='${extensions.sessionRecall}'
+    export PI_FFF='${extensions.piFff}'
+    export PI_LENS='${extensions.piLens}'
+    export RPIV_ASK_USER='${extensions.rpivAskUser}'
+    export PI_BTW='${extensions.piBtw}'
+    export CODEX_IMAGE_GEN='${extensions.codexImageGen}'
+    export PI_VCC='${extensions.piVcc}'
+    export PI_LINEAR='${extensions.piLinear}'
+    export SKILL_CREATOR='${extensions.skillCreator}'
+    export ISSUE_PR_WRITING='${extensions.issuePrWriting}'
+    export REMOTE_CONTROL='${extensions.remoteControl}'
+    export PI_GOAL='${extensions.piGoal}'
+    export CODEX_FAST='${extensions.codexFast}'
+    export DEFAULT_PROVIDER='openai-codex'
+    export DEFAULT_MODEL='gpt-6-astra'
+    export DEFAULT_THINKING_LEVEL='high'
+    exec ${pkgs.bash}/bin/bash ${./merge-pi-settings.sh} "$1"
   '';
 in
 {

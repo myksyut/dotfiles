@@ -10,7 +10,7 @@ buildNpmPackage {
   version = "2.2.0";
   inherit src;
 
-  npmDepsHash = "sha256-m1H/KODz4+nUQc2vAdzwwjCABu6xGQV0gbjCGGSwTB4=";
+  npmDepsHash = "sha256-MnZhcEg0xyetjamtN9Vatdg8SRy61SMvF2zBPkc+yYQ=";
   dontNpmBuild = true;
 
   postPatch = ''

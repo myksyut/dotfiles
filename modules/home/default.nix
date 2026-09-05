@@ -13,6 +13,7 @@ in
   imports = [
     ./neovim.nix
     ./pi.nix
+    ./claude.nix
   ];
   home = {
     stateVersion = "24.11";
@@ -45,6 +46,7 @@ in
         delta
         himalaya
         (callPackage ../../pkgs/gwq { })
+        (callPackage ../../pkgs/quotas { })
 
         deno
         pyenv
@@ -170,18 +172,13 @@ in
       ]
     '';
 
-    # MCP サーバ定義 (Claude Code 等)。secret なし。
+    # MCP サーバ定義。secret なし。Claude Code 用 voicevox は捨てた。
     # force: 同一内容だと link 生成が skip され手動ファイルのまま残るため
     file.".mcp.json" = {
       force = true;
       text = ''
         {
-          "mcpServers": {
-            "voicevox": {
-              "command": "npx",
-              "args": ["@t09tanaka/mcp-simple-voicevox"]
-            }
-          }
+          "mcpServers": {}
         }
       '';
     };

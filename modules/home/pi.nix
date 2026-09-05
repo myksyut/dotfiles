@@ -40,6 +40,8 @@ in
 {
   home = {
     file = {
+      ".pi/agent/skills/grill-with-docs".source = ../../pkgs/skills/grill-with-docs;
+
       ".pi/agent/hunk.json".text = builtins.toJSON {
         review = "off";
         followEdits = true;
@@ -182,6 +184,26 @@ in
 
     activation.configurePiPackages = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       run ${mergePiPackages} "$HOME/.pi/agent/settings.json"
+    '';
+
+    # Disable the pi-web-access curator UI. Keep the file writable so /curator
+    # and saveConfig can still update other keys (API keys, provider).
+    activation.configureWebSearch = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      web_search_config="$HOME/.pi/web-search.json"
+      mkdir -p "$HOME/.pi"
+      if [ -L "$web_search_config" ]; then
+        mv "$web_search_config" "$web_search_config.before-nix.backup"
+      fi
+      if [ ! -e "$web_search_config" ]; then
+        printf '%s\n' '{"workflow":"none"}' > "$web_search_config"
+        chmod 600 "$web_search_config"
+      else
+        tmp="$(${pkgs.coreutils}/bin/mktemp "$HOME/.pi/.web-search.json.XXXXXX")"
+        ${lib.getExe pkgs.jq} '.workflow = "none"' "$web_search_config" > "$tmp"
+        mode="$(${pkgs.coreutils}/bin/stat -c '%a' "$web_search_config")"
+        ${pkgs.coreutils}/bin/chmod "$mode" "$tmp"
+        ${pkgs.coreutils}/bin/mv "$tmp" "$web_search_config"
+      fi
     '';
 
     # The daemon rewrites config.json on startup, so keep it as a writable file

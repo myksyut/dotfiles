@@ -296,6 +296,7 @@
             pi-remote-control = extensions.remoteControl;
             pi-goal = extensions.piGoal;
             pi-codex-fast = extensions.codexFast;
+            quotas = darwinPkgs.callPackage ./pkgs/quotas { };
           };
         ${wslSystem} =
           let
@@ -323,6 +324,7 @@
             pi-remote-control = extensions.remoteControl;
             pi-goal = extensions.piGoal;
             pi-codex-fast = extensions.codexFast;
+            quotas = wslPkgs.callPackage ./pkgs/quotas { };
           };
       };
 

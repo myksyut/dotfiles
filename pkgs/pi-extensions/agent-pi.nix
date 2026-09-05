@@ -18,6 +18,7 @@ buildNpmPackage {
     patch -p1 < ${./patches/agent-pi-shortcuts.patch}
     patch -p1 < ${./patches/agent-pi-runtime-paths.patch}
     patch -p1 < ${./patches/agent-pi-plan-grill-gate.patch}
+    patch -p1 < ${./patches/agent-pi-security-notifications.patch}
   '';
 
   nativeBuildInputs = [ rsync ];

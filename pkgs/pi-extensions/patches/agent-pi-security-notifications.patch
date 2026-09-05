@@ -1,0 +1,360 @@
+diff --git a/extensions/security-guard.ts b/extensions/security-guard.ts
+index b1517f0..e49265c 100644
+--- a/extensions/security-guard.ts
++++ b/extensions/security-guard.ts
+@@ -24,10 +24,11 @@
+  * Usage: Loaded via packages in agent/settings.json
+  */
+ 
+-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
++import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+ import { Box, Text } from "@mariozechner/pi-tui";
+ import { existsSync, readFileSync, writeFileSync, renameSync, appendFileSync, statSync, mkdirSync } from "node:fs";
+ import { join, dirname } from "node:path";
++import { createHash } from "node:crypto";
+ import { fileURLToPath } from "node:url";
+ import {
+ 	loadPolicy,
+@@ -196,7 +197,7 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 
+ 	// ── Security event inline card ───────────────────────────────────────────
+ 	// Dark gray card that flows with conversation (like memory-cycle cards).
+-	// Rendered via sendMessage + registerMessageRenderer.
++	// Keep the renderer for historical cards; new notices are UI-only.
+ 
+ 	interface GuardCardDetails {
+ 		action: string;   // e.g. "stripped 2 injection(s)" or "action blocked"
+@@ -219,13 +220,37 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 
+ 	pi.registerMessageRenderer<GuardCardDetails>("security-guard-event", renderGuardCard);
+ 
+-	function emitGuardCard(action: string, detail: string) {
+-		pi.sendMessage({
+-			customType: "security-guard-event",
+-			content: `security-guard | ${action} | ${detail}`,
+-			display: true,
+-			details: { action, detail },
+-		});
++	function notifyGuard(message: string, ctx: ExtensionContext) {
++		// Notification failures must never interrupt sanitization or blocking.
++		try {
++			if (ctx?.hasUI !== false && ctx?.ui?.notify) {
++				ctx.ui.notify(message, "warning");
++			}
++		} catch {
++			// Audit logging remains the durable, headless-safe notification channel.
++		}
++	}
++
++	function emitGuardCard(action: string, detail: string, ctx: ExtensionContext) {
++		// sendMessage steers a running agent even with triggerTurn: false.
++		notifyGuard(`security-guard | ${action} | ${detail}`, ctx);
++	}
++
++	// Deduplicate reporting only. Every context copy is still fully scanned and
++	// sanitized; never use this cache to trust or bypass a previously seen result.
++	const reportedContextEvents = new Set<string>();
++	function reportContextEvent(message: any, eventKind: string, report: () => void) {
++		const key = createHash("sha256").update(JSON.stringify([
++			message.role, message.toolName, message.toolCallId, message.timestamp,
++			message.content, eventKind,
++		])).digest("hex");
++		if (reportedContextEvents.has(key)) return;
++		if (reportedContextEvents.size >= 2048) {
++			const oldest = reportedContextEvents.values().next().value;
++			if (oldest !== undefined) reportedContextEvents.delete(oldest);
++		}
++		reportedContextEvents.add(key);
++		report();
+ 	}
+ 
+ 	// ================================================================
+@@ -238,6 +263,7 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 	const defaultRoot = join(__dirname, "..", "..");
+ 
+ 	function initPolicy(cwd?: string) {
++		reportedContextEvents.clear();
+ 		projectRoot = cwd || defaultRoot;
+ 		policy = loadPolicy(projectRoot);
+ 		audit = new AuditLogger(projectRoot, policy.settings.audit_log_max_bytes);
+@@ -284,13 +310,11 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 				});
+ 				if (budgetResult.severity === "block") {
+ 					stats.blocked++;
+-					emitGuardCard("budget exceeded", budgetResult.matched);
++					emitGuardCard("budget exceeded", budgetResult.matched, ctx);
+ 					return { block: true, reason: formatThreatsForBlock([budgetResult], policy.settings.verbose_blocks) };
+ 				}
+ 				stats.warned++;
+-				if (ctx?.ui?.notify) {
+-					ctx.ui.notify(`⚠️ ${budgetResult.description}`, "warning");
+-				}
++				notifyGuard(`⚠️ ${budgetResult.description}`, ctx);
+ 			}
+ 		}
+ 
+@@ -397,9 +421,7 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 		// Warnings
+ 		for (const t of warnThreats) {
+ 			stats.warned++;
+-			if (ctx?.ui?.notify) {
+-				ctx.ui.notify(`⚠️ Security: ${t.description} — ${truncate(t.matched, 60)}`, "warning");
+-			}
++			notifyGuard(`⚠️ Security: ${t.description} — ${truncate(t.matched, 60)}`, ctx);
+ 		}
+ 
+ 		// Log-only
+@@ -410,7 +432,7 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 			stats.blocked += blockThreats.length;
+ 			const reason = formatThreatsForBlock(blockThreats, policy.settings.verbose_blocks);
+ 			const summary = blockThreats.map(t => t.description).join("; ");
+-			emitGuardCard("action blocked", truncate(summary, 80));
++			emitGuardCard("action blocked", truncate(summary, 80), ctx);
+ 			return { block: true, reason };
+ 		}
+ 
+@@ -429,11 +451,15 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 
+ 		const maxResultChars = (policy.settings as any).max_tool_result_chars ?? 100000;
+ 
+-		let anyModified = false;
+-		const repairedMessages = messages.map((msg: any) => {
++		// Old display cards remain in session history/UI, not in model input.
++		const contextMessages = messages.filter((msg: any) =>
++			msg.role !== "custom" || msg.customType !== "security-guard-event");
++		let anyModified = contextMessages.length !== messages.length;
++		const repairedMessages = contextMessages.map((msg: any) => {
+ 			// Only scan toolResult messages — these come from files/commands the agent read
+ 			if (msg.role !== "toolResult") return msg;
+ 
++			const sourceMessage = msg;
+ 			// Extract text content from tool result
+ 			const content = msg.content;
+ 			if (!Array.isArray(content)) return msg;
+@@ -453,17 +479,19 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 				});
+ 				if (truncated) {
+ 					msg = { ...msg, content: truncatedContent };
+-					emitGuardCard("output truncated", `limit ${maxResultChars} chars`);
+-					audit.log({
+-						timestamp: now(),
+-						severity: "warn",
+-						category: "unknown",
+-						tool: msg.toolName || "unknown",
+-						description: "Tool result truncated (output size limit)",
+-						matched: `>${maxResultChars} chars`,
+-						action: "warned",
++					reportContextEvent(sourceMessage, "output-truncated", () => {
++						emitGuardCard("output truncated", `limit ${maxResultChars} chars`, ctx);
++						audit.log({
++							timestamp: now(),
++							severity: "warn",
++							category: "unknown",
++							tool: msg.toolName || "unknown",
++							description: "Tool result truncated (output size limit)",
++							matched: `>${maxResultChars} chars`,
++							action: "warned",
++						});
++						stats.warned++;
+ 					});
+-					stats.warned++;
+ 				}
+ 			}
+ 
+@@ -471,7 +499,7 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 
+ 			let msgModified = false;
+ 			const currentContent = msg.content;
+-			const newContent = currentContent.map((block: any) => {
++			const newContent = currentContent.map((block: any, blockIndex: number) => {
+ 				if (block.type !== "text" || !block.text) return block;
+ 
+ 				const threats = scanContent(block.text, policy);
+@@ -481,44 +509,50 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 				const blockLevelThreats = threats.filter((t) => t.severity === "block");
+ 				if (blockLevelThreats.length === 0) {
+ 					// Only warn-level — log but don't strip
+-					for (const t of threats) {
+-						stats.warned++;
+-						stats.threats.push(t);
+-						audit.log({
+-							timestamp: now(),
+-							severity: t.severity,
+-							category: t.category,
+-							tool: msg.toolName || "unknown",
+-							description: `Content injection: ${t.description}`,
+-							matched: t.matched,
+-							action: "warned",
+-						});
+-					}
++					reportContextEvent(sourceMessage, `injection-warning:${blockIndex}`, () => {
++						for (const t of threats) {
++							stats.warned++;
++							stats.threats.push(t);
++							audit.log({
++								timestamp: now(),
++								severity: t.severity,
++								category: t.category,
++								tool: msg.toolName || "unknown",
++								description: `Content injection: ${t.description}`,
++								matched: t.matched,
++								action: "warned",
++							});
++						}
++					});
+ 					return block;
+ 				}
+ 
+ 				// Block-level injection found — strip it
+ 				const { cleaned, redactions } = stripInjections(block.text, policy);
+ 
+-				for (const r of redactions) {
+-					stats.redacted++;
+-					stats.threats.push(r);
+-					audit.log({
+-						timestamp: now(),
+-						severity: r.severity,
+-						category: r.category,
+-						tool: msg.toolName || "unknown",
+-						description: `REDACTED injection: ${r.description}`,
+-						matched: r.matched,
+-						action: "redacted",
+-					});
+-				}
++				reportContextEvent(sourceMessage, `injection:${blockIndex}`, () => {
++					for (const r of redactions) {
++						stats.redacted++;
++						stats.threats.push(r);
++						audit.log({
++							timestamp: now(),
++							severity: r.severity,
++							category: r.category,
++							tool: msg.toolName || "unknown",
++							description: `REDACTED injection: ${r.description}`,
++							matched: r.matched,
++							action: "redacted",
++						});
++					}
++
++					if (cleaned !== block.text) {
++						emitGuardCard(`stripped ${redactions.length} injection(s)`, msg.toolName || "unknown", ctx);
++					}
++				});
+ 
+ 				if (cleaned !== block.text) {
+ 					msgModified = true;
+ 					anyModified = true;
+-					const toolLabel = msg.toolName || "unknown";
+-					emitGuardCard(`stripped ${redactions.length} injection(s)`, toolLabel);
+ 					return { ...block, text: cleaned };
+ 				}
+ 
+@@ -547,18 +581,20 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 
+ 				const leakage = detectSystemPromptLeakage(text, promptFingerprints);
+ 				if (leakage) {
+-					stats.blocked++;
+-					stats.threats.push(leakage);
+-					audit.log({
+-						timestamp: now(),
+-						severity: leakage.severity,
+-						category: leakage.category,
+-						tool: "assistant",
+-						description: leakage.description,
+-						matched: leakage.matched,
+-						action: "blocked",
++					reportContextEvent(msg, "prompt-leakage", () => {
++						stats.blocked++;
++						stats.threats.push(leakage);
++						audit.log({
++							timestamp: now(),
++							severity: leakage.severity,
++							category: leakage.category,
++							tool: "assistant",
++							description: leakage.description,
++							matched: leakage.matched,
++							action: "blocked",
++						});
++						emitGuardCard("prompt leakage blocked", "assistant output", ctx);
+ 					});
+-					emitGuardCard("prompt leakage blocked", truncate(leakage.matched, 60));
+ 					// Replace the assistant message with a warning
+ 					anyModified = true;
+ 					repairedMessages[i] = {
+@@ -582,42 +618,48 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 					if (result.found) {
+ 						anyModified = true;
+ 						repairedMessages[i] = { ...msg, content: result.redacted };
+-						stats.redacted += result.matchCount;
+-						emitGuardCard(`redacted ${result.matchCount} secret(s)`, "assistant output");
+-						audit.log({
+-							timestamp: now(),
+-							severity: "warn",
+-							category: "credentials",
+-							tool: "assistant",
+-							description: `Redacted ${result.matchCount} secret(s) from assistant response`,
+-							matched: `${result.matchCount} patterns`,
+-							action: "redacted",
++						reportContextEvent(msg, "assistant-secrets", () => {
++							stats.redacted += result.matchCount;
++							emitGuardCard(`redacted ${result.matchCount} secret(s)`, "assistant output", ctx);
++							audit.log({
++								timestamp: now(),
++								severity: "warn",
++								category: "credentials",
++								tool: "assistant",
++								description: `Redacted ${result.matchCount} secret(s) from assistant response`,
++								matched: `${result.matchCount} patterns`,
++								action: "redacted",
++							});
+ 						});
+ 					}
+ 				} else if (Array.isArray(content)) {
+ 					let msgModified = false;
++					let matchCount = 0;
+ 					const newContent = content.map((block: any) => {
+ 						if (block.type !== "text" || !block.text) return block;
+ 						const result = scanForSecrets(block.text);
+ 						if (result.found) {
+ 							msgModified = true;
+ 							anyModified = true;
+-							stats.redacted += result.matchCount;
++							matchCount += result.matchCount;
+ 							return { ...block, text: result.redacted };
+ 						}
+ 						return block;
+ 					});
+ 					if (msgModified) {
+ 						repairedMessages[i] = { ...msg, content: newContent };
+-						emitGuardCard("redacted secret(s)", "assistant output");
+-						audit.log({
+-							timestamp: now(),
+-							severity: "warn",
+-							category: "credentials",
+-							tool: "assistant",
+-							description: "Redacted secrets from assistant response",
+-							matched: "secret patterns",
+-							action: "redacted",
++						reportContextEvent(msg, "assistant-secrets", () => {
++							stats.redacted += matchCount;
++							emitGuardCard("redacted secret(s)", "assistant output", ctx);
++							audit.log({
++								timestamp: now(),
++								severity: "warn",
++								category: "credentials",
++								tool: "assistant",
++								description: "Redacted secrets from assistant response",
++								matched: "secret patterns",
++								action: "redacted",
++							});
+ 						});
+ 					}
+ 				}
+@@ -687,6 +729,7 @@ export default function securityGuard(pi: ExtensionAPI) {
+ 		const cwd = ctx?.cwd || defaultRoot;
+ 		initPolicy(cwd);
+ 
++
+ 		// Keep stats across session switches (they're cumulative)
+ 		if (ctx?.ui?.setStatus) {
+ 			updateStatusBar(ctx);

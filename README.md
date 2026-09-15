@@ -1,5 +1,7 @@
 # dotfiles
 
+デスクトップの設定・配色を別のApple Silicon Macへ移す手順: [DESKTOP.md](DESKTOP.md)
+
 `myksyut` の macOS / Windows(WSL) dotfiles。 **nix-darwin + NixOS-WSL + home-manager + flakes** で宣言的に管理。
 
 > 共通の `modules/home` を両プラットフォームで共有し、`pkgs.stdenv.isDarwin` で macOS 専用 (terminal-notifier / ghostty / zed-editor 等) を切り分ける。

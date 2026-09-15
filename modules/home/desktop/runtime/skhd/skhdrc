@@ -1,0 +1,59 @@
+#!/usr/bin/env sh
+# Upstream keys with Finder on Control+Return. Launchers use Ghostty, Zen and Zed.
+# Requires yabai >= 7.1.25 for space focus/movement with SIP enabled.
+
+alt - q : "@runtime@/skhd/scripts/new-ghostty"
+alt - b : /usr/bin/open -a "Zen"
+alt - c : /usr/bin/open -a "Zed"
+alt - s : /usr/bin/open -a "Spotify"
+ctrl - return : /usr/bin/open -a "Finder"
+
+alt - left : "@runtime@/brew-tool" yabai -m window --focus west
+alt - down : "@runtime@/brew-tool" yabai -m window --focus south
+alt - up : "@runtime@/brew-tool" yabai -m window --focus north
+alt - right : "@runtime@/brew-tool" yabai -m window --focus east
+alt - h : "@runtime@/brew-tool" yabai -m window --focus west
+alt - j : "@runtime@/brew-tool" yabai -m window --focus south
+alt - k : "@runtime@/brew-tool" yabai -m window --focus north
+alt - l : "@runtime@/brew-tool" yabai -m window --focus east
+
+shift + alt - left : "@runtime@/skhd/scripts/smart-swap.py" west
+shift + alt - right : "@runtime@/skhd/scripts/smart-swap.py" east
+shift + alt - up : "@runtime@/skhd/scripts/smart-swap.py" north
+shift + alt - down : "@runtime@/skhd/scripts/smart-swap.py" south
+shift + alt - h : "@runtime@/skhd/scripts/smart-swap.py" west
+shift + alt - l : "@runtime@/skhd/scripts/smart-swap.py" east
+shift + alt - k : "@runtime@/skhd/scripts/smart-swap.py" north
+shift + alt - j : "@runtime@/skhd/scripts/smart-swap.py" south
+
+ctrl - h : "@runtime@/brew-tool" skhd -k "ctrl - left"
+ctrl - l : "@runtime@/brew-tool" skhd -k "ctrl - right"
+
+shift + ctrl - left : "@runtime@/brew-tool" yabai -m window --space prev && "@runtime@/brew-tool" yabai -m space --focus prev
+shift + ctrl - right : "@runtime@/brew-tool" yabai -m window --space next && "@runtime@/brew-tool" yabai -m space --focus next
+shift + ctrl - h : "@runtime@/brew-tool" yabai -m window --space prev && "@runtime@/brew-tool" yabai -m space --focus prev
+shift + ctrl - l : "@runtime@/brew-tool" yabai -m window --space next && "@runtime@/brew-tool" yabai -m space --focus next
+
+ctrl + alt - left : "@runtime@/skhd/scripts/resize-window.py" left
+ctrl + alt - down : "@runtime@/skhd/scripts/resize-window.py" down
+ctrl + alt - up : "@runtime@/skhd/scripts/resize-window.py" up
+ctrl + alt - right : "@runtime@/skhd/scripts/resize-window.py" right
+ctrl + alt - h : "@runtime@/skhd/scripts/resize-window.py" left
+ctrl + alt - j : "@runtime@/skhd/scripts/resize-window.py" down
+ctrl + alt - k : "@runtime@/skhd/scripts/resize-window.py" up
+ctrl + alt - l : "@runtime@/skhd/scripts/resize-window.py" right
+
+ctrl - z : "@runtime@/brew-tool" yabai -m window --toggle float && "@runtime@/brew-tool" yabai -m window --grid 4:4:1:1:2:2
+shift + alt - m : "@runtime@/brew-tool" yabai -m window --toggle zoom-fullscreen
+alt - o : "@runtime@/brew-tool" yabai -m window --toggle split
+
+ctrl + alt - r : "@runtime@/brew-tool" yabai -m space --rotate 270
+ctrl + alt + shift - r : "@runtime@/brew-tool" yabai -m space --rotate 90
+ctrl + alt - b : "@runtime@/brew-tool" yabai -m space --balance
+ctrl + alt - 1 : "@runtime@/brew-tool" yabai -m space --layout bsp
+ctrl + alt - 2 : "@runtime@/brew-tool" yabai -m space --layout stack
+ctrl + alt - 3 : "@runtime@/brew-tool" yabai -m space --layout float
+
+ctrl + alt + shift - 0 : "@runtime@/brew-tool" yabai --restart-service
+
+cmd + shift - t : "@runtime@/skhd/scripts/scratchpad.py"

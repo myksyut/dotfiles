@@ -1,6 +1,8 @@
 # SETUP
 
 新しい Mac / Windows(WSL) に **このリポジトリをそのまま適用して動かす** ためのチェックリスト。
+
+デスクトップの配色・yabai・skhd・Zen・Orcaの移行は [DESKTOP.md](DESKTOP.md) も参照。
 原則として上から順に潰せば完走できる構成にしてある。README は機能解説、SETUP.md は手順
 書、と棲み分けて二重メンテにならないようにする。
 
@@ -14,7 +16,7 @@
 
   | scope | 値 | flake.nix の変数 |
   |---|---|---|
-  | macOS host | `miyakinoMacBook-Air` | `darwinHostname` |
+  | macOS host | `miyagishoutanoMacBook-Pro` | `darwinHostname` |
   | WSL host | `miyaki-wsl` | `wslHostname` |
   | ユーザー | `miyakishota` | `username` |
 
@@ -41,8 +43,8 @@ cd ~/.config/nix-config
 
 ### A-3. (必要なら) hostname / username を編集
 
-`scutil --get LocalHostName` で hostname を確認し、`flake.nix` の `darwinHostname` と
-合わなければ書き換える。
+`username` を新Macのユーザー名に合わせる。`darwinHostname` はflakeの構成名なので、
+実機のホスト名と違っても同じ構成名を明示して適用できる。Homebrewが未導入ならA-5を先に実施する。
 
 ### A-4. 初回適用
 
@@ -50,7 +52,7 @@ cd ~/.config/nix-config
 
 ```bash
 sudo nix --extra-experimental-features 'nix-command flakes' \
-  run nix-darwin -- switch --flake .#$(scutil --get LocalHostName)
+  run nix-darwin -- switch --flake .#miyagishoutanoMacBook-Pro
 ```
 
 以後は `nix run .#switch` でも `darwin-rebuild switch --flake .` でも OK。
@@ -223,7 +225,7 @@ kbd を編集した直後の reload:
 
 | 症状 | 対処 |
 |---|---|
-| `darwin-rebuild: command not found` | A-4 の bootstrap が未実施。`sudo nix run nix-darwin -- switch --flake .#$(scutil --get LocalHostName)` を実行 |
+| `darwin-rebuild: command not found` | A-4 の bootstrap が未実施。`sudo nix run nix-darwin -- switch --flake .#miyagishoutanoMacBook-Pro` を実行 |
 | `nix run .#switch` が `sudo` で詰まる | `modules/{darwin,nixos}/default.nix` の sudoers ルールがまだ反映されていない。初回は素の `sudo` パスワードを入力すれば次回以降は不要 |
 | kanata daemon が起動しない (Mac) | `tail /var/log/kanata.log` を確認。"IOHIDDevice open failed" は **入力監視未許可**、"VirtualHIDDevice not running" は **Karabiner driver 未承認** が多い |
 | Cmd+C 等が効かない (Windows) | kanata.exe が管理者権限で動いていない可能性。タスクスケジューラの「最上位の特権で実行」を確認 |

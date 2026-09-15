@@ -1,0 +1,19 @@
+{
+  "version": "1",
+  "name": "Sky Copy",
+  "appearance": "dark",
+  "colors": {
+    "background": "#1799B0",
+    "backgroundSecondary": "#4F4F4F",
+    "text": "#D7F0F4",
+    "selection": "#000000",
+    "loader": "#00FFFF",
+    "red": "#ED5959",
+    "orange": "#ED8659",
+    "yellow": "#EDD559",
+    "green": "#47FF91",
+    "blue": "#1A9FFF",
+    "purple": "#7759ED",
+    "magenta": "#ED59B2"
+  }
+}

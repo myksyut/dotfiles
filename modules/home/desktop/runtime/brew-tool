@@ -1,0 +1,19 @@
+#!/bin/sh
+# Keep the signed Homebrew binaries and their stable Accessibility identities.
+tool=${1:-}
+case "$tool" in
+    yabai|skhd|sketchybar|borders) shift ;;
+    *) echo 'Usage: yabai-config-tool <yabai|skhd|sketchybar|borders> [arguments...]' >&2; exit 2 ;;
+esac
+if [ "$(/usr/bin/uname -m)" = arm64 ]; then
+    prefixes='/opt/homebrew /usr/local'
+else
+    prefixes='/usr/local /opt/homebrew'
+fi
+for prefix in $prefixes; do
+    if [ -x "$prefix/bin/$tool" ]; then
+        exec "$prefix/bin/$tool" "$@"
+    fi
+done
+echo "$tool is not installed. Apply the nix-darwin Homebrew configuration first." >&2
+exit 127

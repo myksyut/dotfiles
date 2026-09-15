@@ -1,0 +1,30 @@
+{
+  "name": "Sky Copy",
+  "id": "manual:nix-sky-copy",
+  "settings": {
+    "theme": "dark",
+    "leftSidebarAppearanceMode": "match-terminal",
+    "terminalDividerColorDark": "#3c565b"
+  },
+  "terminal": {
+    "foreground": "#d7f0f4",
+    "background": "#2b454a",
+    "cursor": "#00ffff",
+    "black": "#2b454a",
+    "red": "#86c8d3",
+    "green": "#a2d4b1",
+    "yellow": "#d5d1ad",
+    "blue": "#a5d2db",
+    "magenta": "#c4bedc",
+    "cyan": "#d7f0f4",
+    "white": "#e8f5f7",
+    "brightBlack": "#b3ccd0",
+    "brightRed": "#a9dce4",
+    "brightGreen": "#bce8c9",
+    "brightYellow": "#e6e2c6",
+    "brightBlue": "#c0e7ee",
+    "brightMagenta": "#dcd5ee",
+    "brightCyan": "#e1f3f6",
+    "brightWhite": "#f4fbfc"
+  }
+}

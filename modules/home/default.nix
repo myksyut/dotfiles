@@ -14,6 +14,7 @@ in
     ./neovim.nix
     ./pi.nix
     ./claude.nix
+    ./desktop
   ];
   home = {
     stateVersion = "24.11";
@@ -668,11 +669,9 @@ in
         window-padding-x = 20;
         window-padding-y = 5;
         window-padding-balance = true;
-        fullscreen = true;
-        macos-non-native-fullscreen = true;
-        # Ghostty is a herdr host: every new surface attaches to the persistent session.
-        # Cmd shortcuts below are therefore always in-herdr, never a bare shell.
-        command = "${pkgs.herdr}/bin/herdr";
+        fullscreen = false; # yabai がウィンドウ配置を管理
+        macos-non-native-fullscreen = false;
+        # Use the default shell; herdr can be started explicitly.
         keybind = [
           # Pi / TUI editors: send Shift+Enter as Kitty CSI-u (ESC[13;2u).
           # text:\\n is ambiguous (Pi treats \\n as submit when kitty protocol is off),
@@ -685,9 +684,8 @@ in
           # Command+T sends kitty CSI-u cmd+t (ESC[116;9u); Ghostty's own new_tab is unbound.
           # herdr binds this as new_tab. Plain ctrl+t stays with the shell.
           "super+t=csi:116;9u"
-          # Command+W sends kitty CSI-u cmd+w (ESC[119;9u); Ghostty's own close_surface is unbound.
-          # herdr binds this as close_tab. Plain ctrl+w stays with the shell.
-          "super+w=csi:119;9u"
+          # Command+W closes the current Ghostty surface.
+          "super+w=close_surface"
           # Pane focus: Cmd+Opt+arrows. Super=8 Alt=2 → modifier 11. Arrow CSI-u codes from kitty.
           "super+alt+arrow_left=csi:57350;11u"
           "super+alt+arrow_down=csi:57353;11u"
@@ -757,7 +755,7 @@ in
         git_panel.dock = "left";
         notification_panel.dock = "right";
         terminal = {
-          dock = "hidden"; # bottom dock を使わず、エディタタブで運用 (cmd-shift-enter で新規)
+          dock = "bottom"; # ターミナルパネルは下部に表示
           copy_on_select = true;
           blinking = "on";
         };
@@ -784,13 +782,8 @@ in
 
         # appearance
         icon_theme = "VSCode Icons for Zed (Dark)";
-        theme = {
-          mode = "dark";
-          light = "Nstlgy Glass Dark";
-          dark = "Nstlgy Glass Dark";
-        };
-        # 水色(アクア寄りのライトブルー)ベース。エディタ部は alpha=cc (≒80%)、パネル/バーは e6 (≒90%)。
-        # editor/panel/terminal などは元から #00000000 (完全透過) で background に重なる構造のため、background を下げれば全体に反映される。
+        # Additional installed themes can still have their own overrides.
+        # Sky Copy/Pywal selection and overrides live in desktop/apps.nix.
         theme_overrides = {
           "Nstlgy Glass Dark" = {
             "background.appearance" = "blurred";

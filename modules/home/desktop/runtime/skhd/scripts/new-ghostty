@@ -1,0 +1,12 @@
+#!/bin/sh
+# Ghostty 1.3+ native macOS API; independent of menu language.
+exec /usr/bin/osascript <<'APPLESCRIPT'
+if application "Ghostty" is running then
+    tell application "Ghostty"
+        set newWindow to new window
+        activate window newWindow
+    end tell
+else
+    tell application "Ghostty" to activate
+end if
+APPLESCRIPT

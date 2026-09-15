@@ -1,6 +1,8 @@
 { pkgs, username, ... }:
 
 {
+  imports = [ ./desktop.nix ];
+
   nix.enable = false;
 
   nixpkgs.config.allowUnfree = true;
@@ -9,11 +11,11 @@
   nixpkgs.overlays = [
     (_final: prev: {
       raycast = prev.raycast.overrideAttrs (_old: rec {
-        version = "2.0.3.0";
+        version = "2.4.1.0";
         src = prev.fetchurl {
           name = "Raycast.dmg";
-          url = "https://x-r2.raycast-releases.com/Raycast_2.0.3.0_bb00d73895_arm64.dmg";
-          hash = "sha256-d20Gu0hneEzOQ0TURZw9hx/LiZ7P7Hy2WQFjtBXP7uA=";
+          url = "https://x-r2.raycast-releases.com/Raycast_2.4.1.0_df416282fa_arm64.dmg";
+          hash = "sha256-W7Ca2vz4BwYFJkuyn89Jbk1hXaOmoM6I6rcGU9GGp5U=";
         };
       });
     })

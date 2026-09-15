@@ -1,34 +1,9 @@
 {
-  "name": "Sky Copy",
+  "name": "No Tint",
   "windowScheme": 0,
   "theme": {
     "type": "gradient",
-    "gradientColors": [
-      {
-        "c": [
-          33,
-          91,
-          101
-        ],
-        "isCustom": false,
-        "algorithm": "",
-        "isPrimary": true,
-        "lightness": 50,
-        "type": "explicit-lightness"
-      },
-      {
-        "c": [
-          57,
-          57,
-          57
-        ],
-        "isCustom": false,
-        "algorithm": "",
-        "isPrimary": false,
-        "lightness": 50,
-        "type": "explicit-lightness"
-      }
-    ],
+    "gradientColors": [],
     "opacity": 0.8,
     "texture": 0
   }

@@ -18,6 +18,17 @@ SPEC = json.loads(SCRIPT.with_name("themes").joinpath("zen-workspaces.json").rea
 ORCA_SPEC = json.loads(SCRIPT.with_name("themes").joinpath("orca-theme.json").read_text())
 
 
+def colored_test_spec():
+    """Keep picker regressions meaningful even when the production theme has no colors."""
+    spec = copy.deepcopy(SPEC)
+    spec["theme"]["gradientColors"] = [
+        {"c": rgb, "isCustom": False, "algorithm": "", "isPrimary": index == 0,
+         "lightness": 50, "type": "explicit-lightness"}
+        for index, rgb in enumerate(([33, 91, 101], [57, 57, 57]))
+    ]
+    return spec
+
+
 def fixture():
     space = {"uuid": "example-workspace", "name": "Example", "theme": {"old": True}, "container": 7}
     sidebar = {"spaces": [space], "tabs": [{"url": "https://example.invalid", "pinned": True}], "folders": [{"id": "folder"}]}
@@ -280,8 +291,9 @@ class AppThemesTests(unittest.TestCase):
                 self.assertEqual(themes.state_directory(), Path.home() / ".local/state")
 
     def test_zen_picker_position_only_is_unchanged(self):
+        spec = colored_test_spec()
         before = fixture()
-        prepared = dict(before, **themes.plan_changes(before, SPEC)[0])
+        prepared = dict(before, **themes.plan_changes(before, spec)[0])
         for name in themes.SESSION_FILES:
             document = themes.decode(prepared[name])
             spaces = document.get("spaces", document.get("windows", [{}])[0].get("spaces", []))
@@ -290,23 +302,24 @@ class AppThemesTests(unittest.TestCase):
                     color["position"] = {"x": 189 + index, "y": 190}
             prepared[name] = themes.encode(document)
         original_bytes = dict(prepared)
-        writes, report = themes.plan_changes(prepared, SPEC)
+        writes, report = themes.plan_changes(prepared, spec)
         self.assertEqual(writes, {})
         self.assertEqual(prepared, original_bytes)
         self.assertTrue(all(count == 0 for count in report["changed_workspace_occurrences"].values()))
 
     def test_zen_rgb_change_still_applies_with_picker_positions(self):
+        spec = colored_test_spec()
         before = fixture()
-        prepared = dict(before, **themes.plan_changes(before, SPEC)[0])
+        prepared = dict(before, **themes.plan_changes(before, spec)[0])
         document = themes.decode(prepared["zen-sessions.jsonlz4"])
         color = document["spaces"][0]["theme"]["gradientColors"][0]
         color["position"] = {"x": 189, "y": 190}
         color["c"][0] = 1
         prepared["zen-sessions.jsonlz4"] = themes.encode(document)
-        writes, report = themes.plan_changes(prepared, SPEC)
+        writes, report = themes.plan_changes(prepared, spec)
         self.assertEqual(set(writes), {"zen-sessions.jsonlz4"})
         updated = themes.decode(writes["zen-sessions.jsonlz4"])
-        self.assertEqual(updated["spaces"][0]["theme"], SPEC["theme"])
+        self.assertEqual(updated["spaces"][0]["theme"], spec["theme"])
         self.assertEqual(updated["tabs"], document["tabs"])
         self.assertEqual(updated["folders"], document["folders"])
         self.assertEqual(report["changed_workspace_occurrences"]["zen-sessions.jsonlz4"], 1)

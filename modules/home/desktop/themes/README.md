@@ -41,7 +41,7 @@ desktop-app-themes --app orca --profile "$HOME/Library/Application Support/orca/
 
 ### 変更する内容
 
-- **Zen:** ワークスペースのテーマと `zen.view.window.scheme`。タブ・フォルダ・コンテナなどを維持し、プライベート・非同期・閉じたウィンドウは変更しません。
+- **Zen:** ワークスペースの色指定を解除（`gradientColors: []`）し、ダーク外観を維持。現在の透過表示に使うTransparent Zen Mod／Zen Internetの導入・設定は同期対象外です。変更対象はテーマと `zen.view.window.scheme`。タブ・フォルダ・コンテナなどを維持し、プライベート・非同期・閉じたウィンドウは変更しません。
 - **Orca:** ダーク外観、Sky Copyターミナルテーマ、サイドバーの「ターミナルに合わせる」、分割線 `#3c565b`。既存のSky CopyがあればIDとメタデータを再利用し、重複登録しません。その他のテーマ、ライトテーマ、作業データ、ログイン情報を維持します。
 
 Orcaの背景は単色です。内蔵エディタの独立した配色選択は、この構成で確認したアプリでは利用できません。

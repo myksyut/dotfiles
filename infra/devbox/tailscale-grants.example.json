@@ -1,0 +1,5 @@
+{
+  "groups": {"group:devbox-owner": ["REPLACE_OWNER@example.com"]},
+  "tagOwners": {"tag:devbox": ["group:devbox-owner"]},
+  "grants": [{"src": ["group:devbox-owner"], "dst": ["tag:devbox"], "ip": ["tcp:6768"]}]
+}

@@ -3,6 +3,7 @@
   config,
   lib,
   zeno-zsh,
+  omp,
   ...
 }:
 
@@ -55,6 +56,7 @@ in
         codex
         herdr
         pi-coding-agent
+        omp.packages.${pkgs.stdenv.hostPlatform.system}.omp
 
         nil
         nixfmt
@@ -496,6 +498,7 @@ in
     # ため writable パスが要る。flake input は store の read-only なので、
     # ~/.local/share へコピーしてから source する。
     activation.copyZenoZsh = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      run mkdir -p "$HOME/.local/share"
       run rm -rf "$HOME/.local/share/zeno-zsh"
       run cp -R ${zeno-zsh} "$HOME/.local/share/zeno-zsh"
       run chmod -R u+w "$HOME/.local/share/zeno-zsh"

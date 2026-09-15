@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Isolated Lima home and minimal environment; no inherited SSH agent/proxy/keys.
+set -euo pipefail
+[[ $(uname -s) == Darwin && $(uname -m) == arm64 ]] || {
+  echo 'This wrapper is for the approved Apple Silicon lab only' >&2
+  exit 1
+}
+case "${1:-}" in
+  start|list|shell|copy|stop|validate|info) ;;
+  *) echo 'Allowed: start, list, shell, copy, stop, validate, info' >&2; exit 2 ;;
+esac
+tools="$HOME/.local/share/devbox-vm-tools"
+[[ -x $tools/bin/limactl ]] || {
+  echo 'Build tools/devbox/vm/host-tools.nix with the documented out-link first' >&2
+  exit 1
+}
+exec /usr/bin/env -i \
+  HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" \
+  LIMA_HOME="$HOME/.local/share/devbox-lima" \
+  PATH="$tools/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+  "$tools/bin/limactl" "$@"

@@ -1,0 +1,8 @@
+{
+  "ubuntu_image": "ubuntu:24.04@sha256:REPLACE_VERIFIED_AMD64_DIGEST",
+  "nix": {"version": null, "url": null, "sha256": null, "local_file": "artifacts/nix.tar.xz"},
+  "orca": {"version": null, "url": null, "sha256": null, "local_file": "artifacts/orca.deb", "verified_cli": null},
+  "tailscale": {"version": null, "url": null, "sha256": null, "local_file": "artifacts/tailscale.tgz"},
+  "oci_digest": null,
+  "note": "Human-reviewed official amd64 artifacts only. No latest URL, guessed checksums or secrets. Record installed dpkg versions as build evidence."
+}

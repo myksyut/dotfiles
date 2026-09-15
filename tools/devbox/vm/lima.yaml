@@ -1,0 +1,62 @@
+---
+# Disposable VM: no host HOME, credentials, sockets, or Tailscale state mounts.
+# Lima 2.2.0 / QEMU 11.0.3 from the repository's locked nixpkgs revision.
+minimumLimaVersion: 2.2.0
+vmType: qemu
+arch: x86_64
+cpus: 4
+memory: 8GiB
+disk: 80GiB
+images:
+  - location: "https://cloud-images.ubuntu.com/minimal/releases/noble/\
+      release-20260716/ubuntu-24.04-minimal-cloudimg-amd64.img"
+    arch: x86_64
+    digest: sha256:d99d1abe3284e568161b3b7dabfbd6cf67956a7f4274b13842f10aa9c7807a2c
+# Do not inherit a base template: many templates add HOME mounts.
+mounts: []
+networks: []
+user:
+  name: devboxlab
+  uid: 1000
+  home: /home/devboxlab
+ssh:
+  localPort: 0
+  loadDotSSHPubKeys: false
+  forwardAgent: false
+  forwardX11: false
+  forwardX11Trusted: false
+containerd:
+  system: false
+  user: false
+upgradePackages: false
+propagateProxyEnv: false
+portForwards:
+  - guestIP: 0.0.0.0
+    guestIPMustBeZero: false
+    proto: any
+    guestPortRange: [1, 65535]
+    ignore: true
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      test "$(uname -m)" = x86_64
+      if ! test -f /var/lib/devbox-lab-provisioned; then
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          ca-certificates curl git jq python3 xz-utils docker.io docker-buildx
+        usermod -aG docker devboxlab
+        systemctl enable --now docker
+        touch /var/lib/devbox-lab-provisioned
+      fi
+probes:
+  - mode: readiness
+    description: Local disposable Docker daemon
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      test "$(uname -m)" = x86_64
+      docker --host unix:///var/run/docker.sock info >/dev/null
+      docker --host unix:///var/run/docker.sock buildx version

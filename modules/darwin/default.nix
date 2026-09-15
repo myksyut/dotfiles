@@ -7,7 +7,7 @@
 
   nixpkgs.config.allowUnfree = true;
 
-  # nixpkgs はまだ v1 のため公式 v2 を固定する。v2 は配布ホストとパスも異なる。
+  # nixpkgs のバージョンに依存せず公式 v2 を固定する (macOS 26 以降)。
   nixpkgs.overlays = [
     (_final: prev: {
       raycast = prev.raycast.overrideAttrs (_old: rec {

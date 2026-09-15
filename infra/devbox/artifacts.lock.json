@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "platform": "linux/amd64",
+  "checked_at": "2026-09-05",
+  "review_scope": "Official HTTPS metadata/download SHA-256 and local amd64 CLI smoke checked by assistant. Orca serve, Nix activation and operator acceptance pending. No signature verification claimed.",
+  "ubuntu_image": "ubuntu:24.04@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+  "ubuntu_source": "https://registry-1.docker.io/v2/library/ubuntu/manifests/24.04",
+  "ubuntu_index_digest": "sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517",
+  "nix": {
+    "version": "2.35.2",
+    "url": "https://releases.nixos.org/nix/nix-2.35.2/nix-2.35.2-x86_64-linux.tar.xz",
+    "sha256": "0c3960a9792331a22081c3c7a5d8465db9b17c50b3acdf18587fa4c6f2cb1158",
+    "sha256_source": "https://releases.nixos.org/nix/nix-2.35.2/nix-2.35.2-x86_64-linux.tar.xz.sha256",
+    "size_bytes": 27131728,
+    "local_file": "artifacts/nix.tar.xz"
+  },
+  "orca": {
+    "version": "1.4.197",
+    "url": "https://github.com/stablyai/orca/releases/download/v1.4.197/orca-ide_1.4.197_amd64.deb",
+    "sha256": "600a476981b839ba84da438d9b9a040b6877cfc65d015a23900c75d1410f7c19",
+    "sha256_source": "https://api.github.com/repos/stablyai/orca/releases/tags/v1.4.197",
+    "release_asset_id": 543549368,
+    "size_bytes": 162285876,
+    "local_file": "artifacts/orca.deb",
+    "package": "orca-ide",
+    "architecture": "amd64",
+    "packaged_cli": "/opt/Orca/resources/bin/orca-ide",
+    "installed_cli": "/usr/bin/orca-ide",
+    "verified_cli": "/usr/bin/orca-ide",
+    "cli_verification_scope": "1.4.197 --version and serve --help only; UID 10001, network none, read-only rootfs, no capabilities. Not server readiness."
+  },
+  "tailscale": {
+    "version": "1.102.3",
+    "url": "https://pkgs.tailscale.com/stable/tailscale_1.102.3_amd64.tgz",
+    "sha256": "36ddd9b51be57ffc2990cf76323cfa13643bfbb1b8a969f6183fa164741cdef5",
+    "sha256_source": "https://pkgs.tailscale.com/stable/tailscale_1.102.3_amd64.tgz.sha256",
+    "size_bytes": 38693297,
+    "local_file": "artifacts/tailscale.tgz"
+  },
+  "oci_digest": null
+}

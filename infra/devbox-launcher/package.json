@@ -1,0 +1,7 @@
+{
+  "name": "devbox-launcher",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test worker.test.mjs"},
+  "dependencies": {"jose": "6.1.0"}
+}

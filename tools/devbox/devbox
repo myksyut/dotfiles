@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""Fixed-Machine manager and conservative local work protection. No Fly stop/destroy.
+This program never installs credentials or prints pairing URLs.
+"""
+import argparse
+import contextlib
+import functools
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+import time
+import uuid
+
+FLYCTL = '@flyctl@'  # Replaced by the Nix package; direct source use needs --flyctl.
+
+
+@functools.lru_cache
+def safety():
+    path = Path('/opt/devbox/idle-controller/safety.py')
+    if not Path('/etc/devbox-host').exists():
+        path = Path(__file__).resolve().parents[2] / 'infra/devbox/idle-controller/safety.py'
+    spec = importlib.util.spec_from_file_location('devbox_safety', path)
+    if spec is None or spec.loader is None:
+        raise ValueError('Safety module unavailable; local operations blocked')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def read_json(path):
+    with open(path, encoding='utf-8') as stream:
+        return json.load(stream)
+
+
+def boot_id():
+    return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+
+
+def proc_start(pid):
+    # comm may contain spaces and parentheses; fields after the final ')' start at 3.
+    return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+
+
+@contextlib.contextmanager
+def registry(home=None, *, read_only=False, fenced=False):
+    guard = contextlib.nullcontext() if fenced else safety().admission(require_open=not read_only)
+    with guard, safety().registry_file(home or Path.home(), owner=os.getuid(), write=not read_only) as data:
+        yield data
+
+
+def blockers(data):
+    return [key for key, item in data['records'].items() if item.get('state') != 'released']
+
+
+def hold(reason):
+    key = uuid.uuid4().hex
+    with registry() as data:
+        data['records'][key] = {'kind': 'hold', 'owner': os.getuid(), 'state': 'held',
+            'boot_id': boot_id(), 'pid': os.getpid(), 'start': proc_start(os.getpid()),
+            'at': time.time(), 'reason': reason}
+    print(key)
+
+
+def release(key, confirmed):
+    with registry() as data:
+        item = data['records'][key]
+        if item['owner'] != os.getuid():
+            raise ValueError('Only the owner can release a record')
+        if item['kind'] == 'job':
+            if not confirmed:
+                raise ValueError('Inspect descendants; --confirm-no-descendants is required')
+            safety().verify_job_absent(item)
+        item['state'] = 'released'
+        item['released_at'] = time.time()
+
+
+def run_work(command):
+    if not command:
+        raise ValueError('run requires -- <command>')
+    key = uuid.uuid4().hex
+    # Register BEFORE spawning. A crash or TTL cannot silently remove protection.
+    with safety().admission():
+        with registry(fenced=True) as data:
+            data['records'][key] = {'kind': 'job', 'owner': os.getuid(), 'state': 'starting',
+                'boot_id': boot_id(), 'pid': os.getpid(), 'start': proc_start(os.getpid()),
+                'at': time.time(), 'reason': 'registered work (arguments deliberately not logged)'}
+        print(f'Protection: {key}', file=sys.stderr)
+        child = subprocess.Popen(command, start_new_session=True)
+        try:
+            identity = safety().proc_info(child.pid)
+        except FileNotFoundError:
+            identity = {'start': None, 'pgid': child.pid, 'sid': child.pid}
+        with registry(fenced=True) as data:
+            data['records'][key].update(state='running', child_pid=child.pid,
+                child_start=identity['start'], pgid=identity['pgid'], sid=identity['sid'])
+    try:
+        code = child.wait()
+    except KeyboardInterrupt:
+        # Do not infer completion or kill unseen descendants. Operator retains control.
+        print('Interrupted: protection remains; inspect child processes.', file=sys.stderr)
+        return 130
+    with registry() as data:
+        data['records'][key].update(state='completed-unverified', exit_code=code)
+    print(f'Check detached descendants, then: devbox release {key} --confirm-no-descendants', file=sys.stderr)
+    return code if code >= 0 else 128 - code
+
+
+def manager_config(path):
+    path = Path(path)
+    parent = path.parent.lstat()
+    if not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in (0, os.getuid()) or parent.st_mode & 0o022:
+        raise ValueError('Unsafe management config directory')
+    # Nonblocking open also refuses a FIFO without waiting for another process.
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+            raise ValueError('manager.json must be a regular owner-only (600), single-link file')
+        config = json.load(stream)
+    if not isinstance(config, dict) or set(config) != {'app', 'machine'}:
+        raise ValueError('Manager config must contain only app and machine (no token)')
+    if not isinstance(config['app'], str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,62}', config['app']):
+        raise ValueError('Invalid fixed app name')
+    if not isinstance(config['machine'], str) or not re.fullmatch(r'[a-f0-9]{14}', config['machine']):
+        raise ValueError('Invalid fixed Machine ID')
+    return config
+
+
+def machine_state(config, runner=subprocess.run, *, flyctl=FLYCTL):
+    result = runner([flyctl, 'machine', 'status', config['machine'],
+        '--app', config['app'], '--json'], capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise ValueError('Fly status failed; check management authentication locally')
+    data = json.loads(result.stdout)
+    # Fly API uses lower-case fields. Do not print the complete config/response.
+    if not isinstance(data, dict) or data.get('id') != config['machine'] or not isinstance(data.get('state'), str):
+        raise ValueError('Unexpected Fly response identity/schema')
+    return data['state']
+
+
+def start_machine(config, runner=subprocess.run, sleep=time.sleep, clock=time.monotonic, *, flyctl=FLYCTL):
+    deadline = clock() + 180
+    requested = False
+    while clock() < deadline:
+        state = machine_state(config, runner, flyctl=flyctl)
+        if state == 'started':
+            return {'machine': 'started', 'ready': 'unknown (verify in Orca)'}
+        if state == 'stopped' and not requested:
+            result = runner([flyctl, 'machine', 'start', config['machine'], '--app',
+                config['app']], capture_output=True, text=True, timeout=60)
+            if result.returncode:
+                raise ValueError('Start failed or raced; check status, never restart/create')
+            requested = True
+        elif state not in {'starting', 'stopping', 'stopped'}:
+            raise ValueError(f'Refuse start in state {state}; manual inspection required')
+        sleep(2)
+    raise ValueError('Timed out waiting for started; no restart attempted')
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config', type=Path, default=Path.home() / '.config/devbox/manager.json')
+    parser.add_argument('--flyctl', help='Verified absolute flyctl path (Nix package pins this by default)')
+    commands = parser.add_subparsers(dest='action', required=True)
+    for name in ('start', 'status', 'open', 'stop'):
+        commands.add_parser(name)
+    p = commands.add_parser('hold')
+    p.add_argument('reason', nargs='?', default='manual hold')
+    p = commands.add_parser('release')
+    p.add_argument('id')
+    p.add_argument('--confirm-no-descendants', action='store_true')
+    p = commands.add_parser('run')
+    p.add_argument('command', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    local = Path('/etc/devbox-host').exists()
+    if args.action in {'run', 'hold', 'release', 'stop'} and not local:
+        raise ValueError('This command must run inside the devbox, not on a management Mac')
+    if args.action == 'run':
+        return run_work(args.command[1:] if args.command[:1] == ['--'] else args.command)
+    if args.action == 'hold':
+        hold(args.reason)
+    elif args.action == 'release':
+        release(args.id, args.confirm_no_descendants)
+    elif args.action == 'stop':
+        if os.getuid() != 0:
+            raise ValueError('Safe stop requires the operator console, not an agent. See CLOUD-DEVBOX.md')
+        return subprocess.call(['/usr/bin/python3', '/opt/devbox/idle-controller/manual_stop.py'])
+    elif args.action == 'status' and local:
+        with registry(read_only=True) as data:
+            result = {'auto_stop': False, 'blockers': blockers(data),
+                      'reason': 'Orca safety contract unverified; manual operator stop only'}
+        status = Path('/run/devbox-status.json')
+        if status.exists():
+            result['services'] = read_json(status)
+        print(json.dumps(result, indent=2))
+    else:
+        if local:
+            raise ValueError('Fly management commands belong on the management Mac')
+        config = manager_config(args.config)
+        flyctl = args.flyctl or FLYCTL
+        if not Path(flyctl).is_absolute() or not os.access(flyctl, os.X_OK):
+            raise ValueError('Use the Nix devbox app, or supply a verified absolute --flyctl path')
+        result = ({'machine': machine_state(config, flyctl=flyctl), 'ready': 'unknown'} if args.action == 'status'
+                  else start_machine(config, flyctl=flyctl))
+        print(json.dumps(result, indent=2))
+        if args.action == 'open':
+            if sys.platform == 'darwin':
+                subprocess.run(['open', '-a', 'Orca'], check=True)
+            print('Orca → Settings → Remote Orca Servers → select the saved server.')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+        print(f'devbox: {exc}', file=sys.stderr)
+        raise SystemExit(1) from exc

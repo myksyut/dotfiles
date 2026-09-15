@@ -6,14 +6,25 @@
 
 > 共通の `modules/home` を両プラットフォームで共有し、`pkgs.stdenv.isDarwin` で macOS 専用 (terminal-notifier / ghostty / zed-editor 等) を切り分ける。
 
+## Cloud Devbox（Orca Remote Server / Fly）
+
+既存Mac/WSLとは別に、standalone Home Managerの`miyakishota@devbox`と
+単一Machine用のインフラ定義・運用CLIを追加しています。
+構築手順・未検証項目・課金/認証の承認点は
+**[Cloud Devbox運用ガイド](docs/CLOUD-DEVBOX.md)**、
+ローカル検証結果は[検証記録](docs/CLOUD-DEVBOX-VALIDATION.md)を参照。
+現在はGate 0用実装でPhase 1未合格です。自動停止は無効、手動停止も検証済みの保存・停止hook導入までは拒否します。
+管理Mac用CLIは`nix run .#devbox -- --help`で確認でき、Python/flyctlはNixの絶対パスに固定されます。
+HOMEを共有しない使い捨てx86_64 Linux VMの作成・検証・停止手順は[ローカルVM lab](tools/devbox/vm/README.md)を参照してください。
+
 ## 使い方の早見表
 
 `nix run .#switch` 等は **実行中の OS の system 用 app を自動で解決** する (macOS なら aarch64-darwin、WSL なら x86_64-linux)。
 
 | コマンド | macOS での動作 | WSL での動作 |
-|---|---|---|
+| --- | --- | --- |
 | `nix run .#switch` | `sudo darwin-rebuild switch` + nom | `sudo nixos-rebuild switch` + nom |
-| `nix run .#build`  | darwin configuration をビルド（適用しない） | nixos configuration をビルド（適用しない） |
+| `nix run .#build` | darwin configuration をビルド（適用しない） | nixos configuration をビルド（適用しない） |
 | `nix run .#update` | `flake.lock` を最新に更新 | 同左 |
 | `nix run .#fmt` / `nix fmt` | Nix ファイルを treefmt で整形 | 同左 |
 | `nix flake check` | formatter + pre-commit の検証 | 同左 |
@@ -40,7 +51,7 @@
 `darwinConfigurations.<hostname>` と並列に `nixosConfigurations.<hostname>` を提供する。
 
 | 概念 | macOS | Windows (WSL) |
-|---|---|---|
+| --- | --- | --- |
 | system | `aarch64-darwin` | `x86_64-linux` |
 | 既定 hostname | `miyakinoMacBook-Air` | `miyaki-wsl` |
 | 外部 input | `nix-darwin` | `nixos-wsl` (NixOS-WSL) |
@@ -53,19 +64,19 @@
 ### Nix 開発支援
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **nil** | Nix の LSP。Zed/VSCode/Helix で `.nix` を開くと補完・参照ジャンプ・ホバーが動く |
 | **nixfmt** | Nix 公式フォーマッタ (RFC style)。treefmt 経由・単体どちらでも使用可 |
 | **statix** | Nix のリンター。anti-pattern を検出（例: `programs.x = ...; programs.y = ...;` の繰り返し → `programs = { x = ...; y = ...; }` を提案） |
 | **deadnix** | デッドコード検出。未使用の `let` バインディングや関数引数を発見 |
-| **nix-output-monitor (nom)** | `nix build` の進捗を DAG 形式でカラフル可視化。`nix run .#switch` 内部で `|& nom` を使用 |
+| **nix-output-monitor (nom)** | `nix build` の進捗を DAG 形式でカラフル可視化。`nix run .#switch` 内部で ` | & nom` を使用 |
 | **nix-index-database** | nixpkgs の binary→package 逆引きインデックス（週次更新キャッシュ）。未インストールコマンドを叩くと提案が出る |
 | **comma (`,`)** | `, foo` で foo を一時的に `nix shell nixpkgs#foo` で実行（インストール不要） |
 
 ### CLI essentials
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **ripgrep (rg)** | `grep` の Rust 代替。`.gitignore` を尊重、桁違いに高速。`rg pattern` |
 | **fd** | `find` の代替。`fd pattern dir` のシンプル構文、カラー出力 |
 | **fzf** | 汎用 fuzzy finder。Ctrl+T (file), Ctrl+R (history), Alt+C (cd) |
@@ -79,7 +90,7 @@
 ### Git 周り
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **gh** | GitHub CLI。`gh repo create`, `gh pr create`, `gh issue list` 等 |
 | **lazygit** | TUI Git クライアント。rebase/cherry-pick/stage を h/j/k/l でサクサク |
 | **delta** | `git diff` のページャ。シンタックスハイライト + サイドバイサイド表示 |
@@ -88,7 +99,7 @@
 ### 開発ユーティリティ
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **just** | Makefile 代替の軽量タスクランナー。シンプル構文、引数渡しが楽 |
 | **watchexec** | ファイル変更で再実行。`watchexec -e py pytest` で .py 変更時に pytest |
 | **hyperfine** | コマンドベンチマーカー。warmup/runs 指定で統計的に valid な計測 |
@@ -99,7 +110,7 @@
 ### UNIX 代替 (Rust 製)
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **dust** | `du -sh` の代替。ディレクトリサイズを縦棒グラフで可視化 |
 | **duf** | `df` の代替。マウントポイントを色付きテーブル表示 |
 | **procs** | `ps` の代替。色付き・ツリー表示・検索・TCP統合 |
@@ -107,7 +118,7 @@
 ### Python
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **uv** | パッケージ + venv + バージョン管理の統合 (Rust 製、爆速)。`uv add foo`, `uv python install 3.13` |
 | **ruff** | linter + formatter。black/isort/flake8 を統合、100倍高速 |
 | **pyright** | 型 LSP (Microsoft 製)。Zed/VSCode で型チェック・補完 |
@@ -117,11 +128,20 @@
 ### ランタイム / アプリ
 
 | パッケージ | 解説 |
-|---|---|
+| --- | --- |
 | **tmux** | ターミナル多重化。home-manager 管理で `~/.config/tmux/tmux.conf` 自動生成 |
 | **herdr** | エージェント対応ターミナルマルチプレクサ。tmux の代替として開発ツールに採用 (`~/.config/herdr/config.toml` も Nix 管理) |
 | **deno** | TypeScript ランタイム (Rust 製)。zeno.zsh の必須依存 |
 | **claude-code** | Anthropic Claude Code CLI（バイナリ名: `claude`） |
+
+### oh-my-pi（omp）
+
+公式[oh-my-pi flake](https://github.com/can1357/oh-my-pi)を固定し、Mac・WSL・Devboxの共通Home Managerで`omp`を導入しています。既存の`pi`はそのまま併用でき、Piの設定・認証・拡張は移行・上書きしません。ompの初期設定・ログインは必要に応じて別途行ってください。
+
+- 単体ビルド: `nix build .#omp`
+- 起動確認: `omp --version` / `omp --help`
+- ompだけ更新: `nix flake update omp`（差分とビルドを確認後に適用）
+- Macへの適用: `nix run .#switch`（内部でsudoを使用）
 
 ## 動作確認サンプル
 
@@ -149,7 +169,7 @@ uvx ipython
 ### 構成要素
 
 | 要素 | 場所 | 役割 |
-|---|---|---|
+| --- | --- | --- |
 | `gwq` バイナリ | `pkgs/gwq/default.nix` (`buildGoModule`) | worktree の作成・列挙・削除 |
 | 切替スクリプト | `~/.config/tmux/worktree-switcher.sh` (Nix 管理) | fzf UI + tmux セッション制御 |
 | tmux キーバインド | `programs.tmux.extraConfig` の `bind-key w` | popup でスクリプトを呼び出す |
@@ -208,7 +228,7 @@ setup_commands = [
 ### よく使う gwq コマンド
 
 | コマンド | 役割 |
-|---|---|
+| --- | --- |
 | `gwq add <branch>` | 既存ブランチの worktree を作成 |
 | `gwq add -b <branch>` | 新規ブランチを作って worktree を作成 |
 | `gwq list` / `gwq ls` | 現在 repo の worktree を一覧 |
@@ -244,7 +264,7 @@ NuPhy Air75 V3 を **Mac モードのまま macOS / Windows 両方で使い回�
   `Ctrl+C` を送るようにして Mac と同じ親指コピペ感覚にする。CapsLock も Mac と同期。
 
 | 物理ラベル (Mac mode) | scancode | macOS 送出 | Windows 送出 (kanata 経由) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Ctrl (左下) | `lctl` | Ctrl | **Win** (start menu 等) |
 | Opt | `lalt` | Opt | Alt |
 | Cmd (左親指) | `lmet` | Cmd | **Ctrl** ← copy/paste の主役 |
@@ -255,7 +275,7 @@ NuPhy Air75 V3 を **Mac モードのまま macOS / Windows 両方で使い回�
 ### Nix 管理範囲
 
 | 担当 | macOS | Windows ホスト |
-|---|---|---|
+| --- | --- | --- |
 | kanata 本体 install | `modules/darwin/default.nix` の `environment.systemPackages` | `winget install jtroo.kanata` (手動) |
 | HID driver | `homebrew.casks = [ "karabiner-elements" ]` (DriverKit のみ流用) | Interception driver (手動 install + 再起動) |
 | 自動起動 | `launchd.daemons.kanata` (root) | タスクスケジューラ (管理者権限) |
@@ -292,6 +312,7 @@ NuPhy Air75 V3 を **Mac モードのまま macOS / Windows 両方で使い回�
 ## 今後の追加予定
 
 ### プロジェクトごとの devShell 運用
+
 - 各プロジェクトに `flake.nix` を置いて言語別環境を定義
 - `direnv` (`use flake`) で `cd` 時に自動有効化
 

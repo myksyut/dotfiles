@@ -1,0 +1,16 @@
+{
+  "name": "devbox",
+  "region": "nrt",
+  "config": {
+    "image": "registry.fly.io/REPLACE_APP@sha256:REPLACE_DIGEST",
+    "env": {
+      "DEVBOX_MODE": "maintenance",
+      "ORCA_CLI": "/usr/bin/orca-ide"
+    },
+    "guest": {"cpu_kind": "shared", "cpus": 4, "memory_mb": 8192},
+    "mounts": [{"volume": "REPLACE_VOLUME_ID", "path": "/data"}],
+    "services": [],
+    "restart": {"policy": "no"},
+    "auto_destroy": false
+  }
+}

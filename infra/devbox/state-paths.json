@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "verified": false,
+  "orca_version": null,
+  "paths": [
+    {"path": "/home/miyakishota", "backing": "/data/home", "purpose": "HOME, repos, worktrees, Pi/Claude/Codex", "backup": true},
+    {"path": "/nix", "backing": "/data/nix", "purpose": "root-managed multi-user store/DB/profiles/GC roots; rebuild from pinned seed/lock on disaster restore", "backup": false},
+    {"path": "/data/tailscale", "purpose": "root-only persistent node identity", "backup": "encrypted; never run cloned identities together"},
+    {"path": "/data/service-data", "purpose": "project databases; consistent dumps required", "backup": true},
+    {"path": "/data/meta", "purpose": "version and lifecycle evidence", "backup": true}
+  ],
+  "unverified_orca_paths": ["userData", "pairing grants", "accounts/keyring", "worktree registry", "layout", "session IDs/history", "managed hooks", "PTY daemon state"],
+  "volatile": ["/run/devbox", "/run/tailscale", "/run/user/10001", "/nix/var/nix/daemon-socket"],
+  "nix_mode": "multi-user",
+  "restore_policy": "Restored metadata is historical evidence, not prepared/home-ready approval. Rebuild Nix and user profiles before new readiness.",
+  "note": "Confirm actual Orca paths and HOME-external data on the pinned build before migration. Do not guess ~/.orca."
+}

@@ -33,6 +33,8 @@
       url = "github:yuki-yano/zeno.zsh/37bebf0e1737de000abe0d58f70d41b8ef61f9b4";
       flake = false;
     };
+    omp.url = "github:can1357/oh-my-pi";
+
     # Custom Pi orchestration package. Override with
     # `--override-input agent-pi path:$HOME/src/agent-pi` while developing.
     agent-pi = {
@@ -53,6 +55,7 @@
       git-hooks,
       zeno-zsh,
       agent-pi,
+      omp,
     }:
     let
       # ---- macOS (nix-darwin) ----
@@ -102,6 +105,22 @@
           };
         };
 
+      mkDevboxCheck =
+        pkgs:
+        pkgs.runCommand "devbox-offline-tests"
+          {
+            nativeBuildInputs = [
+              pkgs.python3
+              pkgs.bash
+              pkgs.jq
+            ];
+          }
+          ''
+            export PYTHONDONTWRITEBYTECODE=1
+            python3 -m unittest discover -s ${self}/infra/devbox/tests -v
+            touch "$out"
+          '';
+
       darwinTreefmtEval = mkTreefmtEval darwinPkgs;
       wslTreefmtEval = mkTreefmtEval wslPkgs;
 
@@ -116,7 +135,12 @@
           # 管理対象パスに既存ファイルがある場合は <file>.before-nix.backup へ退避してから link
           backupFileExtension = "before-nix.backup";
           extraSpecialArgs = {
-            inherit username zeno-zsh agent-pi;
+            inherit
+              username
+              zeno-zsh
+              agent-pi
+              omp
+              ;
           };
           users.${username} = {
             imports = [
@@ -136,6 +160,7 @@
         specialArgs = { inherit username; };
         modules = [
           ./modules/darwin
+          ./modules/darwin/hosts/miyagishoutanoMacBook-Pro.nix
           home-manager.darwinModules.home-manager
           homeManagerModule
         ];
@@ -158,10 +183,32 @@
         ];
       };
 
+      # Standalone, non-NixOS Linux. Existing macOS/WSL switch apps stay intact.
+      homeConfigurations."${username}@devbox" = home-manager.lib.homeManagerConfiguration {
+        pkgs = wslPkgs;
+        extraSpecialArgs = {
+          inherit
+            username
+            zeno-zsh
+            agent-pi
+            omp
+            ;
+        };
+        modules = [
+          nix-index-database.homeModules.nix-index
+          ./modules/home
+          ./modules/home/hosts/devbox.nix
+        ];
+      };
+
       # ===========================================================
       # apps: macOS
       # ===========================================================
       apps.${darwinSystem} = {
+        devbox = {
+          type = "app";
+          program = "${self.packages.${darwinSystem}.devbox}/bin/devbox";
+        };
         switch = {
           type = "app";
           program = toString (
@@ -217,6 +264,28 @@
       # `nix run .#switch` を WSL から実行すると nixos-rebuild に切り替わる。
       # ===========================================================
       apps.${wslSystem} = {
+        devbox-build = {
+          type = "app";
+          program = toString (
+            wslPkgs.writeShellScript "devbox-build" ''
+              set -euo pipefail
+              exec nix build --no-write-lock-file '${self}#homeConfigurations.${username}@devbox.activationPackage' "$@"
+            ''
+          );
+        };
+        devbox-switch = {
+          type = "app";
+          program = toString (
+            wslPkgs.writeShellScript "devbox-switch" ''
+              set -euo pipefail
+              test "$(id -un)" = '${username}'
+              test "$HOME" = '/home/${username}'
+              test -f /etc/devbox-host
+              activation=$(nix build --no-write-lock-file --no-link --print-out-paths '${self}#homeConfigurations.${username}@devbox.activationPackage')
+              exec "$activation/activate"
+            ''
+          );
+        };
         switch = {
           type = "app";
           program = toString (
@@ -278,6 +347,8 @@
             };
           in
           {
+            omp = omp.packages.${darwinSystem}.omp;
+            devbox = darwinPkgs.callPackage ./pkgs/devbox { };
             pi-agent-pi = extensions.agentPi;
             pi-hunk = extensions.piHunk;
             plannotator-pi-extension = extensions.plannotator;
@@ -325,6 +396,7 @@
             pi-goal = extensions.piGoal;
             pi-codex-fast = extensions.codexFast;
             quotas = wslPkgs.callPackage ./pkgs/quotas { };
+            omp = omp.packages.${wslSystem}.omp;
           };
       };
 
@@ -338,10 +410,13 @@
 
       checks = {
         ${darwinSystem} = {
+          devbox-tests = mkDevboxCheck darwinPkgs;
           formatting = darwinTreefmtEval.config.build.check self;
           pre-commit = darwinPreCommitCheck;
         };
         ${wslSystem} = {
+          devbox-home = self.homeConfigurations."${username}@devbox".activationPackage;
+          devbox-tests = mkDevboxCheck wslPkgs;
           formatting = wslTreefmtEval.config.build.check self;
           pre-commit = wslPreCommitCheck;
         };

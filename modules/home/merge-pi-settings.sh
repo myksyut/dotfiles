@@ -24,6 +24,15 @@ settings_path="${1:?settings path is required}"
 : "${PI_GOAL:?}"
 : "${CODEX_FAST:?}"
 
+enable_remote_control="${ENABLE_REMOTE_CONTROL:-true}"
+case "$enable_remote_control" in
+true | false) ;;
+*)
+  printf '%s\n' 'ENABLE_REMOTE_CONTROL must be true or false' >&2
+  exit 1
+  ;;
+esac
+
 default_provider="${DEFAULT_PROVIDER:-openai-codex}"
 default_model="${DEFAULT_MODEL:-gpt-6-astra}"
 default_thinking_level="${DEFAULT_THINKING_LEVEL:-high}"
@@ -37,7 +46,7 @@ if [ -L "$settings_path" ]; then
 fi
 
 if [ ! -e "$settings_path" ]; then
-  printf '%s\n' '{}' > "$settings_path"
+  printf '%s\n' '{}' >"$settings_path"
   chmod 600 "$settings_path"
 elif [ ! -f "$settings_path" ]; then
   printf '%s\n' "merge-pi-settings: refuse non-regular file: $settings_path" >&2
@@ -79,6 +88,7 @@ jq -s -e \
   --arg skillCreator "$SKILL_CREATOR" \
   --arg issuePrWriting "$ISSUE_PR_WRITING" \
   --arg remoteControl "$REMOTE_CONTROL" \
+  --argjson enableRemoteControl "$enable_remote_control" \
   --arg piGoal "$PI_GOAL" \
   --arg codexFast "$CODEX_FAST" \
   --arg defaultProvider "$default_provider" \
@@ -115,7 +125,7 @@ jq -s -e \
         $piLinear,
         $skillCreator,
         $issuePrWriting,
-        $remoteControl,
+        (if $enableRemoteControl then $remoteControl else empty end),
         $piGoal,
         { source: $codexFast, extensions: ["extensions/codex-fast.ts"] }
       ]
@@ -123,7 +133,7 @@ jq -s -e \
     | .defaultProvider = $defaultProvider
     | .defaultModel = $defaultModel
     | .defaultThinkingLevel = $defaultThinkingLevel
-  ' "$settings_path" > "$tmp"
+  ' "$settings_path" >"$tmp"
 
 chmod "$mode" "$tmp"
 mv "$tmp" "$settings_path"

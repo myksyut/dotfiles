@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  config,
   agent-pi,
   ...
 }:
@@ -28,7 +29,12 @@ let
     export PI_LINEAR='${extensions.piLinear}'
     export SKILL_CREATOR='${extensions.skillCreator}'
     export ISSUE_PR_WRITING='${extensions.issuePrWriting}'
-    export REMOTE_CONTROL='${extensions.remoteControl}'
+    export REMOTE_CONTROL='${
+      if config.dotfiles.pi.remoteControl.enable then extensions.remoteControl else "disabled"
+    }'
+    export ENABLE_REMOTE_CONTROL='${
+      if config.dotfiles.pi.remoteControl.enable then "true" else "false"
+    }'
     export PI_GOAL='${extensions.piGoal}'
     export CODEX_FAST='${extensions.codexFast}'
     export DEFAULT_PROVIDER='openai-codex'
@@ -38,7 +44,23 @@ let
   '';
 in
 {
-  home = {
+  options.dotfiles.pi.remoteControl = {
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Install Pi remote-control and initialize its host-specific writable config.";
+    };
+    bindAddress = lib.mkOption {
+      type = lib.types.str;
+      default = "100.82.209.42:17373";
+    };
+    advertisedBaseUrl = lib.mkOption {
+      type = lib.types.str;
+      default = "http://100.82.209.42:17373";
+    };
+  };
+
+  config.home = {
     file = {
       ".pi/agent/skills/grill-with-docs".source = ../../pkgs/skills/grill-with-docs;
 
@@ -208,22 +230,23 @@ in
 
     # The daemon rewrites config.json on startup, so keep it as a writable file
     # rather than a Home Manager symlink into the Nix store.
-    activation.configureRemoteControl = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-            remote_control_dir="$HOME/.pi/remote-control"
-            remote_control_config="$remote_control_dir/config.json"
-            mkdir -p "$remote_control_dir"
-            if [ -L "$remote_control_config" ]; then
-              mv "$remote_control_config" "$remote_control_config.before-nix.backup"
-            fi
-            if [ ! -e "$remote_control_config" ]; then
-              cat > "$remote_control_config" <<'EOF'
-      {
-        "bindAddress": "100.82.209.42:17373",
-        "advertisedBaseUrl": "http://100.82.209.42:17373"
-      }
-      EOF
-              chmod 600 "$remote_control_config"
-            fi
-    '';
+    activation.configureRemoteControl = lib.mkIf config.dotfiles.pi.remoteControl.enable (
+      lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+              remote_control_dir="$HOME/.pi/remote-control"
+              remote_control_config="$remote_control_dir/config.json"
+              mkdir -p "$remote_control_dir"
+              if [ -L "$remote_control_config" ]; then
+                mv "$remote_control_config" "$remote_control_config.before-nix.backup"
+              fi
+              if [ ! -e "$remote_control_config" ]; then
+                cat > "$remote_control_config" <<'EOF'
+        ${builtins.toJSON {
+          inherit (config.dotfiles.pi.remoteControl) bindAddress advertisedBaseUrl;
+        }}
+        EOF
+                chmod 600 "$remote_control_config"
+              fi
+      ''
+    );
   };
 }

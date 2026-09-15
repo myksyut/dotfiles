@@ -1,0 +1,23 @@
+name = "devbox-launcher"
+main = "worker.mjs"
+compatibility_date = "2026-09-05"
+workers_dev = false
+preview_urls = false
+# Add ONLY your Access-protected custom domain route after explicit approval.
+
+[vars]
+PUBLIC_ORIGIN = "https://devbox.example.com"
+ACCESS_ISSUER = "https://REPLACE.cloudflareaccess.com"
+ACCESS_AUD = "REPLACE_ACCESS_APPLICATION_AUDIENCE"
+ALLOWED_SUB = "REPLACE_OWNER_ACCESS_SUBJECT"
+FLY_APP = "replace-app"
+FLY_MACHINE_ID = "0123456789abcd"
+# FLY_API_TOKEN is a Worker secret; never commit it or place it on the devbox.
+
+[[durable_objects.bindings]]
+name = "MACHINE"
+class_name = "MachineGate"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MachineGate"]

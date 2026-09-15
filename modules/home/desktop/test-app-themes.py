@@ -279,6 +279,38 @@ class AppThemesTests(unittest.TestCase):
             with patch.dict(themes.os.environ, {"XDG_STATE_HOME": value}):
                 self.assertEqual(themes.state_directory(), Path.home() / ".local/state")
 
+    def test_zen_picker_position_only_is_unchanged(self):
+        before = fixture()
+        prepared = dict(before, **themes.plan_changes(before, SPEC)[0])
+        for name in themes.SESSION_FILES:
+            document = themes.decode(prepared[name])
+            spaces = document.get("spaces", document.get("windows", [{}])[0].get("spaces", []))
+            for space in spaces:
+                for index, color in enumerate(space["theme"]["gradientColors"]):
+                    color["position"] = {"x": 189 + index, "y": 190}
+            prepared[name] = themes.encode(document)
+        original_bytes = dict(prepared)
+        writes, report = themes.plan_changes(prepared, SPEC)
+        self.assertEqual(writes, {})
+        self.assertEqual(prepared, original_bytes)
+        self.assertTrue(all(count == 0 for count in report["changed_workspace_occurrences"].values()))
+
+    def test_zen_rgb_change_still_applies_with_picker_positions(self):
+        before = fixture()
+        prepared = dict(before, **themes.plan_changes(before, SPEC)[0])
+        document = themes.decode(prepared["zen-sessions.jsonlz4"])
+        color = document["spaces"][0]["theme"]["gradientColors"][0]
+        color["position"] = {"x": 189, "y": 190}
+        color["c"][0] = 1
+        prepared["zen-sessions.jsonlz4"] = themes.encode(document)
+        writes, report = themes.plan_changes(prepared, SPEC)
+        self.assertEqual(set(writes), {"zen-sessions.jsonlz4"})
+        updated = themes.decode(writes["zen-sessions.jsonlz4"])
+        self.assertEqual(updated["spaces"][0]["theme"], SPEC["theme"])
+        self.assertEqual(updated["tabs"], document["tabs"])
+        self.assertEqual(updated["folders"], document["folders"])
+        self.assertEqual(report["changed_workspace_occurrences"]["zen-sessions.jsonlz4"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -142,6 +142,20 @@ def read_profile(profile, allow_running=False):
     return read_files(profile, names)
 
 
+def zen_themes_equal(actual, expected):
+    # Zen saves color-picker dot positions after opening its theme UI. They do
+    # not affect background rendering; retain the original bytes if colors match.
+    comparable = []
+    for theme in (actual, expected):
+        normalized = copy.deepcopy(theme)
+        if isinstance(normalized, dict) and isinstance(normalized.get("gradientColors"), list):
+            for color in normalized["gradientColors"]:
+                if isinstance(color, dict):
+                    color.pop("position", None)
+        comparable.append(normalized)
+    return comparable[0] == comparable[1]
+
+
 def plan_changes(originals, spec):
     sidebar = decode(originals[SESSION_FILES[0]])
     spaces = sidebar.get("spaces")
@@ -168,7 +182,7 @@ def plan_changes(originals, spec):
         count = 0
         for old_spaces, new_spaces in pairs:
             for old, new in zip(old_spaces, new_spaces):
-                if old.get("uuid") in identifiers and old.get("theme") != spec["theme"]:
+                if old.get("uuid") in identifiers and not zen_themes_equal(old.get("theme"), spec["theme"]):
                     new["theme"] = copy.deepcopy(spec["theme"])
                     count += 1
         # Independently prove that restoring only theme fields restores the entire document.

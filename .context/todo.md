@@ -121,7 +121,10 @@
 - Piマージテスト、Python 167件、Worker 14件が成功。変更Nixファイルの診断・nixfmt・statix・deadnixは合格。
 - gitleaksによる作業ツリー全体と未pushの既存1コミットの検査で検出なし。ログ・DB・Pythonキャッシュ等はgitignoreにより保持したまま除外。
 - 既存zshのinitExtra系非推奨警告あり。今回変更せず、ビルド成功を確認。
-- Phase 3: commit・push待ち。switchは未実施で、push後にユーザーが`nix run .#switch`を手動実行する。
+- Phase 3: 完了。`2d98c7d`で110ファイルの全ソース・文書をcommitし、既存未pushコミットとともに`origin/main`へpush。リモートHEAD一致を確認。
+- commit hookが既存ホストモジュールの空引数を`_:`へ自動修正。再commit時にdeadnix/statix/treefmtすべて合格。修正後のMac全体ビルドも成功: `/nix/store/b2alzl4n0cl3ngimpw7s58bcq6y7xhil-darwin-system-26.11.15abb8c`。
+- 公開直前に未pushの2コミットをgitleaksで再検査し、検出なし。
+- switchは未実施。ユーザーが`nix run .#switch`を手動実行し、`command -v omp`と`omp --version`で適用確認する。
 
 ## Grill checkpoint
 

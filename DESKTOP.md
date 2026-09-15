@@ -68,6 +68,11 @@ Home Manager管理の旧設定はNixの旧世代で保持します。
 
 ## 3. Macごとの権限と競合設定
 
+switchが「permission denied when trying to update apps」で止まる場合は、
+「システム設定 → プライバシーとセキュリティ → アプリ管理」で実行元アプリを許可して再実行します。
+ターミナルから実行した場合はそのターミナル、ChatGPTアプリ内から実行した場合は `ChatGPT.app` が対象です。
+この許可はMacごとに必要です。
+
 「システム設定 → プライバシーとセキュリティ → アクセシビリティ」で
 `/opt/homebrew/bin/yabai` と `/opt/homebrew/bin/skhd` を許可します。
 SIPを解除する必要はありません。kanataを使う場合の入力監視はSETUP.mdの手順に従います。

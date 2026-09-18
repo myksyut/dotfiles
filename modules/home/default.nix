@@ -645,17 +645,12 @@ in
       enable = true;
       package = null;
       settings = {
-        # --- Zed (Nstlgy Glass Dark) に寄せた appearance ---
-        # シンタックスパレットは nord 維持。背景は glaze 画像 +
-        # 水色ガラス (#2a638c @ alpha 60% + blur)。
+        # 黒＋透過強め。シンタックスパレットは nord 維持。
         theme = "nord";
-        background = "2a638c";
-        background-opacity = 0.60;
-        background-blur-radius = 20;
-        background-image = "${./assets/glaze.png}";
-        background-image-fit = "cover";
-        background-image-position = "center";
-        selection-background = "3586a8"; # 背景より一段明るい surface 色
+        background = "000000";
+        background-opacity = 0.40;
+        background-blur-radius = 36;
+        selection-background = "333333";
         # Zed の buffer font (JetBrainsMono Nerd Font 15, calt/liga 有効) に統一
         font-family = "JetBrainsMono Nerd Font";
         font-size = 15;

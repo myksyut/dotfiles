@@ -4,27 +4,27 @@
   "settings": {
     "theme": "dark",
     "leftSidebarAppearanceMode": "match-terminal",
-    "terminalDividerColorDark": "#3c565b"
+    "terminalDividerColorDark": "#2a2a2a"
   },
   "terminal": {
-    "foreground": "#d7f0f4",
-    "background": "#2b454a",
-    "cursor": "#00ffff",
-    "black": "#2b454a",
-    "red": "#86c8d3",
-    "green": "#a2d4b1",
-    "yellow": "#d5d1ad",
-    "blue": "#a5d2db",
-    "magenta": "#c4bedc",
-    "cyan": "#d7f0f4",
-    "white": "#e8f5f7",
-    "brightBlack": "#b3ccd0",
-    "brightRed": "#a9dce4",
-    "brightGreen": "#bce8c9",
-    "brightYellow": "#e6e2c6",
-    "brightBlue": "#c0e7ee",
-    "brightMagenta": "#dcd5ee",
-    "brightCyan": "#e1f3f6",
-    "brightWhite": "#f4fbfc"
+    "foreground": "#e8e8e8",
+    "background": "#000000",
+    "cursor": "#ffffff",
+    "black": "#000000",
+    "red": "#c8c8c8",
+    "green": "#a8a8a8",
+    "yellow": "#d0d0d0",
+    "blue": "#d8d8d8",
+    "magenta": "#c0c0c0",
+    "cyan": "#e8e8e8",
+    "white": "#f0f0f0",
+    "brightBlack": "#666666",
+    "brightRed": "#d8d8d8",
+    "brightGreen": "#b8b8b8",
+    "brightYellow": "#e0e0e0",
+    "brightBlue": "#ececec",
+    "brightMagenta": "#d4d4d4",
+    "brightCyan": "#f2f2f2",
+    "brightWhite": "#ffffff"
   }
 }
